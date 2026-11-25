@@ -34,3 +34,5 @@ struct RouteRequest {
     int family=0;
 };
 Json run_route(const RouteRequest&,const std::atomic_bool&,const std::function<void(const Json&)>&);
+
+std::string fetch_release_bytes(const std::wstring& origin, bool executable);

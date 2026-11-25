@@ -1,3 +1,4 @@
 #pragma once
 inline constexpr wchar_t default_server[]=LR"origin(@NETDIAG_DESKTOP_ORIGIN@)origin";
 inline constexpr wchar_t desktop_version[]=L"@PROJECT_VERSION@";
+inline constexpr char project_signer_b64[]="@PROJECT_SIGNER_B64@";

@@ -128,6 +128,7 @@
         "target_kind": {
           "enum": [
             "official_diagnostic",
+            "steam_relay",
             "user_supplied"
           ]
         }

@@ -33,6 +33,7 @@ jobs:
               throw "Unexpected product metadata in $($binary.Name)"
             }
           }
+      - run: .\build\Release\vipnet-update-check.exe
       - run: .\build\Release\vipnet-route-check.exe
       - run: .\build\Release\vipnet-summary-check.exe
       - run: .\build\Release\vipnet-summary-access-check.exe build/Release/VIP-NET-Diagnostyka.exe

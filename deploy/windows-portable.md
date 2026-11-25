@@ -31,3 +31,9 @@ Polecenie `vipnet-mtr.exe --throughput` używa osobnego `VIPNET_NODE_ORIGIN` (ba
 Podczas pomiaru obserwuj dwie karty transferu. Wykres pokazuje przyrost bajtów w kolejnych przedziałach czasu. Duża liczba po teście jest średnią obliczoną z transferu potwierdzonego przez węzeł. Najedź na wykres, aby odczytać próbkę. Wybierz metrykę lub wiersz diagnostyki, aby poznać szczegóły. Osobno pokazujemy ping ICMP oraz mediany czasów odpowiedzi HTTPS pod obciążeniem. Starsze raporty mogą zawierać tylko średnie.
 
 Program zachowuje ostatni raport i archiwum JSON w podkatalogu `reports` profilu klienta. Zapis może zawierać prywatne adresy. Serwer od wersji 0.6.0 ogłasza obsługę przebiegów w odpowiedzi rezerwacji. Po połączeniu z serwerem 0.5.5 pełne przebiegi pozostają w lokalnym raporcie, a poprzedni format pomiaru trafia do panelu.
+
+## Aktualizacja od wersji 0.7.4
+
+Przy otwarciu aplikacja pobiera mały opis wydania przez HTTPS. Gdy pojawi się nowa wersja, otwórz Ustawienia i wybierz **Zainstaluj aktualizację**. Po sprawdzeniu pliku wybierz **Zamknij i zastosuj**. Instalator czeka na zakończenie procesu i wymienia EXE. Otwórz ponownie ten sam plik. Potrzebujesz prawa zapisu w jego folderze oraz systemu plików Windows obsługującego atomową wymianę i strumień strefy Internet. Komunikat w Ustawieniach informuje o powodzeniu lub przyczynie błędu. W wersji 0.7.3 i wcześniejszych pobierz nowe EXE ze strony dystrybucji.
+
+Wydawca podpisuje numer wersji, platformę, rozmiar i skrót SHA-256 manifestu. Klient akceptuje tylko zgodny podpis przypiętym publicznym kluczem i nowszą wersję. Folder zapisu, nazwa aplikacji i adres pobierania wynikają z uruchomionej kopii programu oraz jego kanału HTTPS. Wydanie stagingowe zawiera samodzielnie wystawiony podpis Authenticode projektu. Publiczny łańcuch zaufania wydawcy wymaga odrębnej weryfikacji.

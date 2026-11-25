@@ -51,7 +51,7 @@ class Channel {
 public:
     std::string peer;
     Channel(const std::string& id, const std::wstring& origin)
-        : session_(handle(WinHttpOpen(L"VIP-NET transfer/0.7.2", WINHTTP_ACCESS_TYPE_NO_PROXY, nullptr, nullptr, 0))),
+        : session_(handle(WinHttpOpen(L"VIP-NET transfer/0.7.4", WINHTTP_ACCESS_TYPE_NO_PROXY, nullptr, nullptr, 0))),
           connection_(nullptr, WinHttpCloseHandle), base_(L"/measure/v1/runs/" + widen(id)) {
         URL_COMPONENTS url{};
         url.dwStructSize = sizeof(url);
@@ -69,7 +69,7 @@ public:
 
     Handle send(const wchar_t* verb, const wchar_t* suffix, const std::wstring& secret, DWORD size = 0,
                 const std::wstring& absolute = {}) {
-        const bool public_request = absolute == L"/api/v1/portal/clients" || (absolute == L"/api/v1/portal/game-profiles" && std::wstring_view(verb)==L"GET");
+        const bool public_request = absolute == L"/api/v1/portal/clients" || ((absolute == L"/api/v1/portal/game-profiles" || absolute == L"/pobierz/windows-release.json" || absolute == L"/pobierz/VIP-NET-Diagnostyka.exe") && std::wstring_view(verb)==L"GET");
         require(public_request || (secret.size() >= 32 && secret.size() <= 256 &&
                 std::all_of(secret.begin(), secret.end(), [](wchar_t c){return c >= 33 && c <= 126;})),
                 "node_credential_required");
@@ -453,4 +453,21 @@ Json measure_throughput(Queue& queue, const std::string& id, const std::atomic_b
     doc["ended_at"] = utc_now();
     save();
     return doc;
+}
+
+std::string fetch_release_bytes(const std::wstring& origin, bool executable) {
+    Channel channel("",origin);
+    auto req=channel.send(L"GET",L"",L"",0,executable?L"/pobierz/VIP-NET-Diagnostyka.exe":L"/pobierz/windows-release.json");
+    channel.receive(req.get(),200);
+    std::string data;
+    std::array<char,32768> chunk{};
+    const size_t limit=executable?33554432:8192;
+    auto deadline=Clock::now()+std::chrono::seconds(60);
+    DWORD count{};
+    do {
+        check(WinHttpReadData(req.get(),chunk.data(),static_cast<DWORD>(chunk.size()),&count));
+        require(data.size()+count<=limit && Clock::now() < deadline,"Przekroczono limit pobierania aktualizacji.");
+        data.append(chunk.data(),count);
+    } while(count);
+    return data;
 }

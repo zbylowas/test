@@ -38,7 +38,32 @@
       "processes": [
         "cs2.exe"
       ],
-      "regions": []
+      "regions": [
+        {
+          "label": "Warszawa · przekaźnik Steam",
+          "host": "155.133.230.100",
+          "method": "icmp",
+          "kind": "steam_relay",
+          "verified": "2026-11-25",
+          "source": "https://api.steampowered.com/ISteamApps/GetSDRConfig/v1/?appid=730"
+        },
+        {
+          "label": "Frankfurt · przekaźnik Steam",
+          "host": "155.133.226.68",
+          "method": "icmp",
+          "kind": "steam_relay",
+          "verified": "2026-11-25",
+          "source": "https://api.steampowered.com/ISteamApps/GetSDRConfig/v1/?appid=730"
+        },
+        {
+          "label": "Wiedeń · przekaźnik Steam",
+          "host": "146.66.155.66",
+          "method": "icmp",
+          "kind": "steam_relay",
+          "verified": "2026-11-25",
+          "source": "https://api.steampowered.com/ISteamApps/GetSDRConfig/v1/?appid=730"
+        }
+      ]
     },
     {
       "name": "Valorant",
@@ -68,7 +93,32 @@
       "processes": [
         "dota2.exe"
       ],
-      "regions": []
+      "regions": [
+        {
+          "label": "Warszawa · przekaźnik Steam",
+          "host": "155.133.230.100",
+          "method": "icmp",
+          "kind": "steam_relay",
+          "verified": "2026-11-25",
+          "source": "https://api.steampowered.com/ISteamApps/GetSDRConfig/v1/?appid=570"
+        },
+        {
+          "label": "Frankfurt · przekaźnik Steam",
+          "host": "155.133.226.68",
+          "method": "icmp",
+          "kind": "steam_relay",
+          "verified": "2026-11-25",
+          "source": "https://api.steampowered.com/ISteamApps/GetSDRConfig/v1/?appid=570"
+        },
+        {
+          "label": "Wiedeń · przekaźnik Steam",
+          "host": "146.66.155.66",
+          "method": "icmp",
+          "kind": "steam_relay",
+          "verified": "2026-11-25",
+          "source": "https://api.steampowered.com/ISteamApps/GetSDRConfig/v1/?appid=570"
+        }
+      ]
     },
     {
       "name": "PUBG: BATTLEGROUNDS",

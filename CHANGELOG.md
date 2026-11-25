@@ -1,5 +1,16 @@
 # Historia wydań
 
+## 0.7.4 · 2026-11-25
+
+- Poprawiono współdzielenie uchwytu podczas zapisu strefy Internet. Test aktualizacji obejmuje działającą kopię portable. Pakowanie sprawdza wersję PE bez uruchamiania binarium i weryfikuje dozwolony certyfikat. Eksport CSV zapisuje etykiety katalogu jako tekst.
+
+## 0.7.3 · 2026-11-25
+
+- Windows sprawdza podpisany opis wydania po otwarciu aplikacji. W Ustawieniach można pobrać nowszy plik, zweryfikować go i zainstalować w tym samym miejscu. Nowa wersja działa od następnego uruchomienia.
+- Klient sprawdza podpis RSA projektu, numer wersji, rozmiar i SHA-256. Plik pobrany z Internetu zachowuje oznaczenie strefy Windows.
+- Dla CS2 i Dota 2 można wybrać przekaźnik Steam w Warszawie, Frankfurcie i Wiedniu. Raport wskazuje rodzaj celu. Dotychczasowe pomiary i opcja wpisania własnego hosta pozostają dostępne.
+
+
 ## 25 listopada 2026 · katalog gier
 
 - Do katalogu dołączyły Dota 2 i PUBG: BATTLEGROUNDS. W profilu Valoranta można wybrać europejski cel pomiarowy Riot lub własny adres. Windows 0.7.2 pobiera listę z serwera przy pierwszym otwarciu widoku gier po uruchomieniu aplikacji.

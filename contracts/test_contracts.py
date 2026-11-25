@@ -143,6 +143,24 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(europe["kind"], "official_diagnostic")
         self.assertTrue(europe["source"].startswith("https://support.riotgames.com/"))
 
+    def test_release_manifest_and_legacy_metadata(self):
+        legacy = dict(version="0.7.2", sha256="a"*64, authenticode=dict(status="NotSigned", publisher=None, timestamped=False))
+        # Historical download metadata has no authenticated update offer.
+        schema = validator("windows-release.schema.json")
+        self.assertFalse(schema.is_valid(legacy))
+        current = legacy | dict(version="0.7.3", size=4096, platform="windows-x64", proof="A"*512)
+        schema.validate(current)
+        for patch in (dict(size=0), dict(version="0.07.3"), dict(platform="windows-x86"), dict(sha256="x"*64)):
+            self.assertFalse(schema.is_valid(current | patch))
+
+    def test_steam_relays(self):
+        catalog = read(BASE.parents[1] / "server/game-profiles.json")
+        validator("game-profiles.schema.json").validate(catalog)
+        for name, app in (("Counter-Strike 2", 730), ("Dota 2", 570)):
+            regions = next(g["regions"] for g in catalog["profiles"] if g["name"] == name)
+            self.assertEqual(len(regions), 3)
+            self.assertTrue(all(r["kind"] == "steam_relay" and r["source"].endswith(str(app)) for r in regions))
+
     def test_session_and_completion(self):
         session = {"schema_version": 1, "session_id": "9a8da3b5-7334-45d4-b3ac-7e7482389a16",
                    "started_at": "2026-11-24T12:00:00Z", "client_version": "stage0", "mode": "portable"}

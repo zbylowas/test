@@ -7,7 +7,7 @@
 namespace summary {
 constexpr int start_id=101, copy_id=102, stop_id=103, report_id=105, profile_id=106,
     menu_id=107, back_id=108, help_id=109, nav_id=200, metric_id=240, check_id=250, finding_id=261;
-constexpr int list_id=310, graph_id=311, target_id=312, choice_id=313, mode_id=314, action_id=315, region_id=316, limit_id=317, interval_id=318, export_id=319, family_id=324, favorite_id=325, saved_id=326, game_method_id=327, game_length_id=328, compare_id=329, archive_id=330;
+constexpr int list_id=310, graph_id=311, target_id=312, choice_id=313, mode_id=314, action_id=315, region_id=316, limit_id=317, interval_id=318, export_id=319, family_id=324, favorite_id=325, saved_id=326, game_method_id=327, game_length_id=328, compare_id=329, archive_id=330, update_id=331;
 class View {
 public:
     void create(HWND window,std::wstring origin,std::wstring brand);
@@ -43,7 +43,7 @@ public:
 private:
     HICON logo_{};
     HWND parent_{},tools_{},profile_{},detail_{},title_{},sub_{},brand_{},footer_{},time_{},measurement_{},diagnostics_{};
-    HWND compare_{},archive_{};
+    HWND compare_{},archive_{},update_{};
     HWND game_method_{},game_length_{},family_{},favorite_{},saved_{};
     HWND table_{},graph_{},target_{},choice_{},mode_{},action_{},region_{},limit_{},interval_{},export_{};
     DetailPage table_data_;

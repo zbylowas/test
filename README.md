@@ -40,7 +40,7 @@ Testy sieciowe CI wykonują pomiary na loopback. Dane w docs/evidence tej edycji
 
 ## Code signing policy
 
-Wydanie 0.5.5 jest niepodpisane. Suma SHA-256 i bieżący status Authenticode są dostępne na stronie pobierania. Autorskie wydania przygotowuje vip-net.pl. Udział w programie SignPath Foundation wymaga odrębnej akceptacji fundacji i zweryfikowania pochodzenia pliku z publicznej budowy. [Metadane wydania](https://diagnostics.example.org/pobierz/windows-release.json) · [Zasady SignPath](https://signpath.org/terms)
+W wydaniu stagingowym 0.7.4 plik Windows otrzymuje podpis kluczem projektu. Certyfikat wystawiono we własnym zakresie. Windows może zgłosić nieznanego wydawcę. Aktualizacje weryfikują podpis manifestu przypiętym kluczem projektu. Suma SHA-256 i bieżący status Authenticode są dostępne na stronie pobierania. Autorskie wydania przygotowuje vip-net.pl. Udział w programie SignPath Foundation wymaga odrębnej akceptacji fundacji i zweryfikowania pochodzenia pliku z publicznej budowy. [Metadane wydania](https://diagnostics.example.org/pobierz/windows-release.json) · [Zasady SignPath](https://signpath.org/terms)
 
 ## Dane pomiarowe
 

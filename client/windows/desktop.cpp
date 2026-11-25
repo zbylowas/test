@@ -1,5 +1,6 @@
 #include "throughput.hpp"
 #include "summary_view.hpp"
+#include "update.hpp"
 #include "desktop_brand.hpp"
 #pragma comment(linker,"/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 #include "inventory_report.hpp"
@@ -343,7 +344,7 @@ void game_region(HWND w){
     const auto& g=selected_game(w);auto& regions=field(g,"regions");int i=choice(w,region_id);
     if(regions.is_array() && i>=0 && static_cast<size_t>(i)<regions.size()){
         auto& r=regions[i];set_control(w,target_id,wide(r.value("host","")));EnableWindow(GetDlgItem(w,target_id),FALSE);
-        view.route_status(L"Regionalny cel diagnostyczny · "+wide(r.value("verified",""))+L" · źródło w szczegółach profilu");
+        view.route_status(r.value("kind","")=="steam_relay"?L"Trasa do przekaźnika Steam. Ping w meczu może być inny.":L"Regionalny cel diagnostyczny · "+wide(r.value("verified",""))+L" · źródło w szczegółach profilu");
     }else{set_control(w,target_id,L"");EnableWindow(GetDlgItem(w,target_id),TRUE);view.route_status(catalog_error.empty()?L"Podaj własny cel dla wybranego profilu.":catalog_error);}
 }
 void game_selection(HWND w){
@@ -396,9 +397,42 @@ void show_profiles_info(HWND w){
     bool running=game_running(field(g,"processes"));
     p.rows.push_back({{name,running?L"Rozpoznano uruchomiony proces":L"Brak potwierdzonego procesu"},L"Dopasowanie nazwy procesu w Windows. Aktywny serwer meczu pozostaje nieustalony.",{},{}});
     for(const auto& r:field(g,"regions"))
-        p.rows.push_back({{wide(r.value("label","")),wide(r.value("host",""))},L"Regionalny cel diagnostyczny ICMP. Weryfikacja "+wide(r.value("verified",""))+L" · "+wide(r.value("source","")),{},{}});
+        p.rows.push_back({{wide(r.value("label","")),wide(r.value("host",""))},std::wstring(r.value("kind","")=="steam_relay"?L"Przekaźnik sieci Steam. Pomiar ICMP obejmuje drogę do przekaźnika. ":L"Regionalny cel diagnostyczny ICMP. ")+L"Weryfikacja "+wide(r.value("verified",""))+L" · "+wide(r.value("source","")),{},{}});
     if(p.rows.size()==1)p.rows.push_back({{L"Host regionalny",L"Brak zweryfikowanego celu"},L"Możesz podać pojedynczy adres otrzymany od operatora gry.",{},{}});
     view.table(std::move(p));game_region(w);
+}
+constexpr UINT update_message=WM_APP+5;
+std::jthread update_job;
+std::optional<updates::Release> offered_release;
+std::wstring update_status=L"Sprawdzanie dostępnej wersji…";
+bool updating=false, installed_update=false;
+struct UpdateResult {
+    std::optional<updates::Release> available;
+    std::wstring status;
+    bool installed=false;
+};
+UpdateResult update_result;
+void start_update(HWND w,bool install){
+    if(updating || installed_update)return;
+    updating=true;
+    update_status=install?L"Pobieranie i weryfikacja pliku…":L"Sprawdzanie dostępnej wersji…";
+    auto previous=offered_release;
+    update_job=std::jthread([w,install,previous,host=origin()]{
+        UpdateResult result;
+        try{
+            auto release=updates::check(host);
+            if(updates::newer(release.version,utf8(desktop_version))){
+                result.available=release;
+                if(install && previous && previous->sha256==release.sha256 && previous->version==release.version){
+                    updates::install(release,host);
+                    result.installed=true;
+                    result.status=L"Pobrano i zweryfikowano "+wide(release.version)+L". Zamknij aplikację, aby dokończyć instalację.";
+                }else result.status=L"Dostępna wersja "+wide(release.version)+L". Wybierz przycisk aktualizacji.";
+            }else result.status=L"Masz aktualną wersję aplikacji.";
+        }catch(const std::exception& e){result.status=L"Nie udało się ukończyć aktualizacji. "+wide(e.what());}
+        update_result=std::move(result);
+        PostMessageW(w,update_message,0,0);
+    });
 }
 void navigate(HWND w,int page){
     report_open=false;opened_route=0;
@@ -428,9 +462,15 @@ void navigate(HWND w,int page){
         p.rows={{{L"Serwer pomiarowy",origin()},L"Adres HTTPS z konfiguracji NetDiagnostics.ini lub z ustawień tej dystrybucji.",{},{}},
             {{L"Profil pomiaru",view.capacity()?L"Pełna prędkość":L"Mały transfer"},L"Profil następnego testu wybierzesz na ekranie Podsumowanie.",{},{}},
             {{L"Wersja Windows EXE",desktop_version},L"Wersja binarium uruchomionego na tym komputerze.",{},{}},
+            {{L"Aktualizacja aplikacji",update_status},L"Program sprawdza wersję przy otwarciu. Pobieranie nowej wersji wymaga kliknięcia.",{},{}},
             {{L"Panel klienta",origin()+L"/klient"},L"Przycisk na dole kopiuje prywatny kod do panelu klienta.",{},{}}};
     }
-    view.workspace(page,std::move(p));set_control(w,report_id,L"Pełny raport");
+    view.workspace(page,std::move(p));
+    if(page==11){
+        set_control(w,update_id,installed_update?L"Zamknij i zastosuj":offered_release?L"Zainstaluj aktualizację":L"Sprawdź aktualizacje");
+        EnableWindow(GetDlgItem(w,update_id),!updating && !busy && !loading);
+    }
+    set_control(w,report_id,L"Pełny raport");
     if(page<6 || page>8){view.controls(busy,!code.empty(),!technical_text.empty());return;}
     if(route_reports[page-6].is_object())bind_result(route_reports[page-6]);else if(page!=7 || !last_report.is_object())bind_result(nullptr);else view.controls(busy,!code.empty(),!technical_text.empty());
     if(page==6){game_results_visible=route_reports[0].is_object();start_catalog(w);init_games(w);if(!route_reports[0].is_object())show_profiles_info(w);}
@@ -550,7 +590,11 @@ void export_page(HWND w){
             bytes="\xef\xbb\xbf";bool csv=dialog.nFilterIndex==1;
             for(auto& row:rows){bool first=true;for(auto& cell:row){
                 if(!first)bytes+=csv?";":"\t";first=false;auto txt=utf8(cell);
-                if(csv){bytes+='"';for(char c:txt){if(c=='"')bytes+='"';bytes+=c;}bytes+='"';}else bytes+=txt;
+                if(csv){
+                    const auto first_text=txt.find_first_not_of(" \t\r\n");
+                    if(first_text!=std::string::npos && std::string_view("=+-@").find(txt[first_text])!=std::string_view::npos)
+                        txt.insert(0,1,'\'');
+                    bytes+='"';for(char c:txt){if(c=='"')bytes+='"';bytes+=c;}bytes+='"';}else bytes+=txt;
             }bytes+="\r\n";}
         }
         write_atomic(dest,bytes);view.route_status(L"Plik zapisany.");
@@ -590,7 +634,7 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
     switch(m) {
     case WM_CREATE:
         set_window_icon(w,-1);view.create(w,origin(),setting(L"Operator",L"NetDiagnostics"));
-        view.controls(false,false,false);load_report(w);return 0;
+        view.controls(false,false,false);load_report(w);start_update(w,false);return 0;
     case WM_GETMINMAXINFO: {
         auto lim=reinterpret_cast<MINMAXINFO*>(b);auto dpi=GetDpiForWindow(w);if(!dpi)dpi=96;
         MONITORINFO mon{sizeof mon};
@@ -627,17 +671,27 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
         if((header->code==NM_RETURN || header->code==NM_DBLCLK) && (view.page()==9 || view.page()==10) && !busy && !loading)open_archive(w);
         return 0;
     }
+    case update_message:
+        update_job.join();updating=false;
+        offered_release=std::move(update_result.available);
+        installed_update=update_result.installed;update_status=std::move(update_result.status);
+        if(closing){if(!busy && !loading && !catalog_loading){save_placement(w);DestroyWindow(w);}return 0;}
+        if(view.page()==11)navigate(w,11);
+        if(offered_release && !installed_update)SetWindowTextW(w,L"NetDiagnostics — aktualizacja dostępna w Ustawieniach");
+        return 0;
     case catalog_message: {
         std::unique_ptr<std::pair<Json,std::wstring>> result(reinterpret_cast<std::pair<Json,std::wstring>*>(b));
         catalog_job.join();catalog_loading=false;
         game_catalog=std::move(result->first);catalog_error=std::move(result->second);
-        if(closing && !busy && !loading){save_placement(w);DestroyWindow(w);return 0;}
+        if(closing && !updating && !busy && !loading){save_placement(w);DestroyWindow(w);return 0;}
         if(view.page()==6 && !busy && !loading){init_games(w);if(!route_reports[0].is_object())show_profiles_info(w);else view.route_status(route_display(6,route_reports[0]).subtitle);EnableWindow(GetDlgItem(w,action_id),!busy && !loading);}
         return 0;
     }
     case WM_DRAWITEM:return view.draw(*reinterpret_cast<DRAWITEMSTRUCT*>(b));
     case WM_COMMAND: {
         int id=LOWORD(a);
+        if(id==update_id && installed_update && !busy && !loading){PostMessageW(w,WM_CLOSE,0,0);return 0;}
+        if(id==update_id && view.page()==11 && !busy && !loading){start_update(w,offered_release.has_value());navigate(w,11);return 0;}
         if(id==favorite_id && !busy){try{favorites(w,true);}catch(const std::exception& e){view.route_status(wide(e.what()));}return 0;}
         if(id==saved_id && HIWORD(a)==CBN_SELCHANGE && !busy){
             int i=choice(w,saved_id)-1;if(i>=0 && static_cast<size_t>(i)<favorite_hosts.size())set_control(w,target_id,favorite_hosts[i]);return 0;
@@ -699,7 +753,7 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
         }return 0;
     case done_message: {
         job.join();bool restore=loading;loading=false;busy=false;end_chart(w);
-        if(closing){if(!catalog_loading){save_placement(w);DestroyWindow(w);}return 0;}
+        if(closing){if(!updating && !catalog_loading){save_placement(w);DestroyWindow(w);}return 0;}
         if(route_mode){
             KillTimer(w,route_timer);int mode=route_mode;route_mode=0;
             for(int i=0;i<12;++i)EnableWindow(GetDlgItem(w,nav_id+i),TRUE);
@@ -734,7 +788,7 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
         view.controls(false,!code.empty(),!technical_text.empty());view.phase(status);if(view.page() && !report_open)navigate(w,view.page());return 0;
     }
     case WM_CLOSE:
-        if(busy || loading || catalog_loading){closing=true;cancelled=true;end_chart(w);view.phase(L"Zamykanie i zapis wyniku…");}
+        if(busy || loading || catalog_loading || updating){closing=true;cancelled=true;end_chart(w);view.phase(L"Zamykanie i zapis wyniku…");}
         else {save_placement(w);DestroyWindow(w);}return 0;
     case WM_DESTROY:view.destroy();PostQuitMessage(0);return 0;
     }
@@ -742,7 +796,16 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
 }
 }
 
-int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,PWSTR,int show) {
+int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,PWSTR arguments,int show) {
+    constexpr std::wstring_view finish=L"--finish-update ";
+    std::wstring_view args(arguments?arguments:L"");
+    if(args.starts_with(finish)){
+        auto pid=args.substr(finish.size());
+        if(pid.empty() || pid.size()>10 || pid.find_first_not_of(L"0123456789")!=pid.npos)return 2;
+        wchar_t* end=nullptr;unsigned long number=wcstoul(pid.data(),&end,10);
+        return number && !*end?updates::finish_pending_update(number):2;
+    }
+    updates::cleanup();
     if(!SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)) SetProcessDPIAware();
     INITCOMMONCONTROLSEX common{sizeof common,ICC_WIN95_CLASSES};InitCommonControlsEx(&common);
     WNDCLASSW cls{};cls.hInstance=instance;cls.lpszClassName=L"VipNetDiagnosticsWindow";
