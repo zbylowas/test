@@ -148,9 +148,12 @@ def package(exe, output, json_license, zlib_license, gui=None, web=None, require
             if required not in members:
                 raise ValueError(f"missing {required}")
         for member in members:
-            expected = (assets[member.removeprefix("frontend/dist/")].read_bytes() if member.startswith("frontend/dist/")
-                        else notices[member].read_bytes() if member in notices
-                        else (ROOT / member).read_bytes().replace(b"\r\n", b"\n"))
+            if member.startswith("frontend/dist/"):
+                expected = assets[member.removeprefix("frontend/dist/")].read_bytes()
+            elif member in notices:
+                expected = notices[member].read_bytes()
+            else:
+                expected = (ROOT / member).read_bytes().replace(b"\r\n", b"\n")
             if archive.extractfile(member).read() != expected:
                 raise ValueError(f"invalid server archive member {member}")
     public_exe = output / "VIP-NET-Diagnostyka.exe"

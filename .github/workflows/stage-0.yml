@@ -23,6 +23,16 @@ jobs:
       - run: python -m unittest rules.test_mtr rules.test_v020 rules.test_throughput measurement-node.test_transfer contracts.test_contracts -v
       - run: cmake -S client/windows -B build -A x64 -DVIPNET_ACCEPTANCE=ON
       - run: cmake --build build --config Release
+      - name: Verify Windows product metadata
+        shell: pwsh
+        run: |
+          $version = & ./build/Release/vipnet-mtr.exe --version
+          foreach ($binary in Get-Item build/Release/VIP-NET-Diagnostyka.exe,build/Release/vipnet-mtr.exe) {
+            $meta = $binary.VersionInfo
+            if ($meta.ProductName -cne 'VIP-NET Internet Diagnostics' -or $meta.ProductVersion -cne $version) {
+              throw "Unexpected product metadata in $($binary.Name)"
+            }
+          }
       - run: .\build\Release\vipnet-chart-check.exe
       - run: python scripts/verify_windows.py build/Release/vipnet-mtr.exe -v
       - run: python scripts/verify_inventory.py build/Release/vipnet-mtr.exe .local/ci-inventory

@@ -275,6 +275,14 @@ def qualify(pg, exe, evidence, disposable):
     }
     with tempfile.TemporaryDirectory(prefix="vipnet-v010-") as temp, ExitStack() as stack:
         private = Path(temp)
+        if disposable:
+            if os.getenv("RUNNER_ENVIRONMENT") != "github-hosted":
+                raise RuntimeError("Expected a disposable GitHub-hosted Windows runner.")
+            # initdb drops the Administrators group. Grant the runner user access
+            # to this temporary cluster and its children before creating any files.
+            system = Path(os.environ["SystemRoot"]) / "System32"
+            account = run([system / "whoami.exe"], text=True).stdout.strip()
+            run([system / "icacls.exe", private, "/grant", f"{account}:(OI)(CI)M"])
         cert, key, der, thumbprint = tls_leaf(private)
         config = stack.enter_context(cluster(pg, private))
         owner_env = dict(os.environ, VIPNET_DATABASE_URL=config["owner_url"])
