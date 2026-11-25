@@ -2,6 +2,8 @@
 #include "throughput.hpp"
 #include "desktop_brand.hpp"
 #include <wincrypt.h>
+#include <sddl.h>
+#include <shlobj.h>
 #include <objbase.h>
 #include <winver.h>
 #include <bcrypt.h>
@@ -167,10 +169,35 @@ static void stage(const fs::path& path,const std::string& data) {
     require(bool(out),"Błąd zapisu przygotowywanej aktualizacji.");
 }
 static fs::path temp_root() {
-    wchar_t path[32768]{};
-    auto n=GetTempPathW(32768,path);
-    require(n && n<32768,"Brak katalogu tymczasowego Windows.");
-    return fs::path(path)/L"VIP-NET-Portable-Updates";
+    PWSTR local{};
+    require(SHGetKnownFolderPath(FOLDERID_LocalAppData,KF_FLAG_DEFAULT,nullptr,&local)==S_OK,"Brak katalogu profilu Windows.");
+    std::unique_ptr<wchar_t,decltype(&CoTaskMemFree)> guard(local,CoTaskMemFree);
+    return fs::path(local)/L"VIP-NET-Portable-Updates";
+}
+static void create_private_stage(const fs::path& dir) {
+    HANDLE token{};
+    require(OpenProcessToken(GetCurrentProcess(),TOKEN_QUERY,&token)!=FALSE,"Brak informacji o koncie Windows.");
+    KernelHandle token_guard(token,CloseHandle);
+    DWORD length{};TOKEN_ELEVATION level{};
+    require(GetTokenInformation(token,TokenElevation,&level,sizeof(level),&length) && !level.TokenIsElevated,
+            "Otwórz aplikację jako zwykły użytkownik, aby ją zaktualizować.");
+    GetTokenInformation(token,TokenUser,nullptr,0,&length);
+    std::vector<BYTE> storage(length);
+    require(length && GetTokenInformation(token,TokenUser,storage.data(),length,&length),"Brak identyfikatora konta.");
+    PWSTR sid{};
+    require(ConvertSidToStringSidW(reinterpret_cast<TOKEN_USER*>(storage.data())->User.Sid,&sid)!=FALSE,"Brak identyfikatora konta.");
+    std::unique_ptr<void,decltype(&LocalFree)> sid_guard(sid,LocalFree);
+    auto acl=std::wstring(L"D:P(A;OICI;FA;;;SY)(A;OICI;FA;;;")+sid+L")";
+    PSECURITY_DESCRIPTOR sd{};
+    require(ConvertStringSecurityDescriptorToSecurityDescriptorW(acl.c_str(),SDDL_REVISION_1,&sd,nullptr)!=FALSE,"Nie można zabezpieczyć katalogu.");
+    std::unique_ptr<void,decltype(&LocalFree)> sd_guard(sd,LocalFree);
+    SECURITY_ATTRIBUTES sa{sizeof(sa),sd,FALSE};
+    require(CreateDirectoryW(dir.c_str(),&sa)!=FALSE,"Nie można utworzyć prywatnego katalogu instalatora.");
+}
+static KernelHandle lock_image(const fs::path& path) {
+    auto f=CreateFileW(path.c_str(),GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr);
+    require(f!=INVALID_HANDLE_VALUE,"Windows nie zezwolił na zabezpieczenie pliku instalatora.");
+    return KernelHandle(f,CloseHandle);
 }
 static std::wstring ready_event(const fs::path& dir) {return L"Local\\VIP-NET-Update-"+dir.filename().wstring();}
 
@@ -197,6 +224,7 @@ void cleanup() noexcept {
 }
 
 int finish_pending_update(unsigned long pid) {
+    bool applying=false;
     try {
         auto self=module_path(), dir=self.parent_path();
         GUID id{};
@@ -204,8 +232,9 @@ int finish_pending_update(unsigned long pid) {
                 CLSIDFromString(dir.filename().c_str(),&id)==S_OK,"Nieprawidłowy katalog aktualizacji.");
         KernelHandle parent(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION|SYNCHRONIZE,FALSE,pid),CloseHandle);
         KernelHandle ready(OpenEventW(EVENT_MODIFY_STATE,FALSE,ready_event(dir).c_str()),CloseHandle);
+        KernelHandle commit(OpenEventW(SYNCHRONIZE,FALSE,(ready_event(dir)+L"-apply").c_str()),CloseHandle);
         wchar_t target[32768]{};DWORD length=32768;
-        require(parent && ready && QueryFullProcessImageNameW(parent.get(),0,target,&length),"Program źródłowy jest niedostępny.");
+        require(parent && ready && commit && QueryFullProcessImageNameW(parent.get(),0,target,&length),"Program źródłowy jest niedostępny.");
         auto original=hex_digest(read_limited(self,33554432));
         require(hex_digest(read_limited(target,33554432))==original,"Plik na dysku został zmieniony.");
         auto release=verify(read_limited(dir/L"release.json",8192));
@@ -213,12 +242,16 @@ int finish_pending_update(unsigned long pid) {
         require(candidate.size()==release.size && hex_digest(candidate)==release.sha256 &&
                 parts(release.version)>file_version(target),"Niepoprawny plik lub wersja aktualizacji.");
         require(SetEvent(ready.get())!=FALSE,"Nie można potwierdzić gotowości aktualizacji.");
+        HANDLE decisions[]{commit.get(),parent.get()};
+        if(WaitForMultipleObjects(2,decisions,FALSE,15000)!=WAIT_OBJECT_0)return 1;
+        applying=true;
         require(WaitForSingleObject(parent.get(),INFINITE)==WAIT_OBJECT_0,"Nie można potwierdzić zamknięcia programu.");
         require(hex_digest(read_limited(target,33554432))==original,"Plik aplikacji został zmieniony podczas oczekiwania.");
         replace_verified(release,candidate,target);
         clear_stage(dir);
         return 0;
     }catch(const std::exception& e){
+        if(!applying)return 1;
         int n=MultiByteToWideChar(CP_UTF8,0,e.what(),-1,nullptr,0);
         std::wstring why(n,L'\0');
         if(n)MultiByteToWideChar(CP_UTF8,0,e.what(),-1,why.data(),n);
@@ -237,14 +270,22 @@ void install(const Release& offered,const std::wstring& origin) {
     require(CoCreateGuid(&guid)==S_OK && StringFromGUID2(guid,id,40),"Nie można przygotować aktualizacji.");
     auto root=temp_root(),dir=root/id;
     fs::create_directories(root);
-    require(!(GetFileAttributesW(root.c_str())&FILE_ATTRIBUTE_REPARSE_POINT) && CreateDirectoryW(dir.c_str(),nullptr),
+    require(!(GetFileAttributesW(root.c_str())&FILE_ATTRIBUTE_REPARSE_POINT),
             "Nie można utworzyć katalogu aktualizacji.");
+    create_private_stage(dir);
     try{
         // Make the manifest first so another instance's cleanup skips this operation.
         stage(dir/L"release.json",manifest);
         stage(dir/L"candidate.bin",candidate);
         auto helper=dir/L"runner.exe";
-        require(CopyFileW(module_path().c_str(),helper.c_str(),TRUE)!=FALSE,"Nie można przygotować programu instalującego.");
+        auto original=module_path();
+        auto source_lock=lock_image(original);
+        require(CopyFileW(original.c_str(),helper.c_str(),TRUE)!=FALSE,"Nie można przygotować programu instalującego.");
+        auto helper_lock=lock_image(helper);
+        require(hex_digest(read_limited(original,33554432))==hex_digest(read_limited(helper,33554432)),
+                "Kopia instalatora nie odpowiada uruchomionej aplikacji.");
+        KernelHandle commit(CreateEventW(nullptr,TRUE,FALSE,(ready_event(dir)+L"-apply").c_str()),CloseHandle);
+        require(commit && GetLastError()!=ERROR_ALREADY_EXISTS,"Nie można zabezpieczyć zatwierdzenia instalacji.");
         KernelHandle ready(CreateEventW(nullptr,TRUE,FALSE,ready_event(dir).c_str()),CloseHandle);
         require(ready && GetLastError()!=ERROR_ALREADY_EXISTS,"Nie można potwierdzić stanu instalatora.");
         auto cmd=L"\""+helper.wstring()+L"\" --finish-update "+std::to_wstring(GetCurrentProcessId());
@@ -255,6 +296,7 @@ void install(const Release& offered,const std::wstring& origin) {
         KernelHandle child(pi.hProcess,CloseHandle);
         HANDLE handles[]{ready.get(),child.get()};
         require(WaitForMultipleObjects(2,handles,FALSE,15000)==WAIT_OBJECT_0,"Instalator nie potwierdził gotowości.");
+        require(SetEvent(commit.get())!=FALSE,"Nie można zatwierdzić instalacji.");
     }catch(...){clear_stage(dir);throw;}
 }
 }

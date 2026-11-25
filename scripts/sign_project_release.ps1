@@ -3,7 +3,7 @@ param(
     [Parameter(Mandatory,ParameterSetName='Binaries')][string]$BuildDirectory,
     [Parameter(Mandatory,ParameterSetName='Binaries')][string]$OutputDirectory,
     [Parameter(Mandatory,ParameterSetName='Binaries')][string]$SignTool,
-    [Parameter(Mandatory,ParameterSetName='Manifest')][string]$Manifest
+    [Parameter(Mandatory,ParameterSetName='Manifest')][switch]$ManifestFromStdin
 )
 $ErrorActionPreference='Stop'
 $public=[System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
@@ -11,7 +11,7 @@ $public=[System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
 $cert=Get-Item -LiteralPath ('Cert:\CurrentUser\My\'+$public.Thumbprint)
 if (-not $cert.HasPrivateKey) { throw 'The release key is unavailable.' }
 if ($PSCmdlet.ParameterSetName -eq 'Manifest') {
-    $m=Get-Content -LiteralPath $Manifest -Raw | ConvertFrom-Json
+    $m=[Console]::In.ReadToEnd() | ConvertFrom-Json
     $message="VIP-NET Windows x64"+[char]10+$m.version+[char]10+$m.size+[char]10+$m.sha256+[char]10
     $rsa=[System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
     try {

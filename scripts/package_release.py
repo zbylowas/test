@@ -85,8 +85,8 @@ def _package_snapshot(exe, gui, output, json_license, zlib_license, web, require
             "(Get-Item -LiteralPath $env:VIPNET_RELEASE_FILE).VersionInfo.ProductVersion"],
             env=dict(os.environ, VIPNET_RELEASE_FILE=str(path)), text=True).strip()
     version = pe_version(exe)
-    if version != "0.7.4":
-        raise ValueError("the tested v0.7.4 executable is required")
+    if version != "0.7.5":
+        raise ValueError("the tested v0.7.5 executable is required")
     web = web or ROOT / "frontend/dist"
     if not (web / "index.html").is_file() or not any((web / "assets").glob("*.js")):
         raise ValueError("build the portal with pnpm run build first")
@@ -107,9 +107,8 @@ def _package_snapshot(exe, gui, output, json_license, zlib_license, web, require
         gui_version = pe_version(gui)
         if gui_version != version:
             raise ValueError("GUI and CLI versions differ")
-        metadata.write_text(json.dumps(info), encoding="utf-8")
         info["proof"] = subprocess.check_output(["pwsh","-NoProfile","-NonInteractive","-File",
-            str(ROOT/"scripts/sign_project_release.ps1"),"-Manifest",str(metadata)], text=True).strip()
+            str(ROOT/"scripts/sign_project_release.ps1"),"-ManifestFromStdin"], input=json.dumps(info), text=True).strip()
     metadata.write_text(json.dumps(info, ensure_ascii=False)+"\n", encoding="utf-8")
     win = output / f"vipnet-windows-x64-{version}.zip"
     with ZipFile(win, "x", compression=ZIP_DEFLATED) as archive:

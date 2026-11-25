@@ -1,5 +1,9 @@
 # Historia wydań
 
+## 0.7.5 · 2026-11-25
+
+- Instalator działa w prywatnym katalogu konta Windows, blokuje obie kopie programu pomocniczego na czas przygotowania i oczekuje na osobne potwierdzenie gotowości. Instalacja odbywa się z uprawnieniami zwykłego użytkownika. Podpisujący otrzymuje treść manifestu bezpośrednio z procesu pakowania.
+
 ## 0.7.4 · 2026-11-25
 
 - Poprawiono współdzielenie uchwytu podczas zapisu strefy Internet. Test aktualizacji obejmuje działającą kopię portable. Pakowanie sprawdza wersję PE bez uruchamiania binarium i weryfikuje dozwolony certyfikat. Eksport CSV zapisuje etykiety katalogu jako tekst.
