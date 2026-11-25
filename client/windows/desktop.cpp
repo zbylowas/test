@@ -178,8 +178,8 @@ void layout_report(HWND window) {
     RECT rect{};
     GetClientRect(window,&rect);
     const int width = std::max(1L,rect.right-48);
-    const int top = active_direction ? 330 : 212;
-    MoveWindow(chart_box,24,210,width,108,TRUE);
+    const int top = active_direction ? 428 : 212;
+    MoveWindow(chart_box,24,210,width,204,TRUE);
     ShowWindow(chart_box,active_direction ? SW_SHOWNA : SW_HIDE);
     MoveWindow(report_box,24,top,width,std::max(34L,rect.bottom-top-24),TRUE);
 }
@@ -193,6 +193,7 @@ void end_chart(HWND window) {
 void run(HWND window) {
     live_traffic.received = 0;
     live_traffic.sent = 0;
+    live_traffic.profile_bps = 0;
     busy=true; cancelled=false;
     EnableWindow(start_button,FALSE); EnableWindow(copy_button,FALSE); EnableWindow(stop_button,TRUE);
     SetWindowTextW(status_text,L"Łączenie z serwerem…");
@@ -252,7 +253,7 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
         stop_button=control(w,L"BUTTON",L"Zatrzymaj",WS_TABSTOP,stop_id,normal_font);
         copy_button=control(w,L"BUTTON",L"Kopiuj kod do panelu",WS_TABSTOP,copy_id,normal_font);
         status_text=control(w,L"STATIC",L"Gotowy do pomiaru",0,0,normal_font);
-        chart_box=control(w,L"STATIC",L"Wykres prędkości",SS_OWNERDRAW,chart_id,normal_font);
+        chart_box=control(w,L"STATIC",L"Prędkościomierz i wykres prędkości",SS_OWNERDRAW,chart_id,normal_font);
         ShowWindow(chart_box,SW_HIDE);
         report_box=control(w,L"EDIT",L"Wynik pojawi się tutaj po wykonaniu testu.",WS_BORDER|WS_TABSTOP|ES_MULTILINE|ES_READONLY|WS_VSCROLL,0,normal_font);
         try {
@@ -303,9 +304,10 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
             SetWindowTextW(status_text,labels[a]);
             if(a==1 || a==2) {
                 active_direction=static_cast<int>(a);
-                chart.reset(a==1 ? live_traffic.received.load() : live_traffic.sent.load());
+                chart.reset(a==1 ? live_traffic.received.load() : live_traffic.sent.load(),
+                            live_traffic.profile_bps.load()/1000000.0);
                 layout_report(w);
-                SetTimer(w,chart_timer,125,nullptr);
+                SetTimer(w,chart_timer,50,nullptr);
             }
         }
         return 0;

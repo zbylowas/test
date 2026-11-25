@@ -105,7 +105,7 @@ function printReport(){window.print()}
 <header><div class="bar"><a class="brand" href="/"><span class="mark" aria-hidden="true">▥</span> VIP-NET</a><nav aria-label="Panele"><a href="/klient" :aria-current="!landing&&!admin?'page':undefined">Panel klienta</a><a href="/admin" :aria-current="admin?'page':undefined">Administracja</a></nav></div></header>
 <main>
 <template v-if="landing">
-<section class="hero"><div><p class="eyebrow">Diagnostyka łącza</p><h1>Sprawdź swoje<br>połączenie.</h1><p class="lead">Zmierz pobieranie, wysyłanie i opóźnienie pod obciążeniem. Wynik zobaczysz od razu w aplikacji.</p><a class="button" href="/pobierz/VIP-NET-Diagnostyka.exe" download>↓ &nbsp; Pobierz aplikację</a><small>Windows 10 i 11 · x64 · wersja testowa 0.5.3</small><small>{{publisher}} <a href="/pobierz/VIP-NET-Diagnostyka.exe.sha256">Suma kontrolna SHA-256</a><template v-if="showSources"> · <a href="https://github.com/zbylowas/test">Kod źródłowy (MIT)</a> · <a href="https://github.com/zbylowas/test#code-signing-policy">Zasady podpisywania aplikacji</a></template></small></div>
+<section class="hero"><div><p class="eyebrow">Diagnostyka łącza</p><h1>Sprawdź swoje<br>połączenie.</h1><p class="lead">Zmierz pobieranie, wysyłanie i opóźnienie pod obciążeniem. W aplikacji zobaczysz prędkościomierz ze wskazówką, a po teście raport o swoim połączeniu.</p><a class="button" href="/pobierz/VIP-NET-Diagnostyka.exe" download>↓ &nbsp; Pobierz aplikację</a><small>Windows 10 i 11 · x64 · wersja testowa 0.5.4</small><small>{{publisher}} <a href="/pobierz/VIP-NET-Diagnostyka.exe.sha256">Suma kontrolna SHA-256</a><template v-if="showSources"> · <a href="https://github.com/zbylowas/test">Kod źródłowy (MIT)</a> · <a href="https://github.com/zbylowas/test#code-signing-policy">Zasady podpisywania aplikacji</a></template></small></div>
 <aside class="guide"><h2>Jak wykonać pomiar</h2><ol><li>Pobierz i otwórz <strong>VIP-NET-Diagnostyka.exe</strong>.</li><li>Kliknij <strong>Wykonaj test</strong> i poczekaj na raport.</li><li>Aby wrócić do wyników w przeglądarce, wybierz <strong>Kopiuj kod do panelu</strong> w aplikacji.</li></ol><a href="/klient">Otwórz historię pomiarów →</a></aside></section>
 </template>
 <template v-else-if="!logged">
@@ -140,5 +140,5 @@ function printReport(){window.print()}
 <details v-if="admin && inventory"><summary>Surowa inwentaryzacja Windows</summary><pre>{{JSON.stringify(inventory,null,2)}}</pre></details>
 <div class="actions"><button class="quiet" @click="printReport">Drukuj / zapisz PDF</button><button class="quiet" @click="exportJson">Pobierz raport JSON</button></div>
 </template></article>
-</template></main><footer><span>VIP-NET Internet Diagnostics</span><span>Wersja 0.5.3</span></footer>
+</template></main><footer><span>VIP-NET Internet Diagnostics</span><span>Wersja 0.5.4</span></footer>
 </template>

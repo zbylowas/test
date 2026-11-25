@@ -2,12 +2,14 @@
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <numbers>
 #include <sstream>
 
 using namespace std::chrono_literals;
 
-void SpeedChart::reset(std::uint64_t bytes) {
+void SpeedChart::reset(std::uint64_t bytes, double scale_mbps) {
     started_ = Clock::now();
+    scale_mbps_ = scale_mbps;
     counters_ = {{started_, bytes}};
     points_.clear();
 }
@@ -34,6 +36,68 @@ std::wstring SpeedChart::readout() const {
     return number + L" Mb/s";
 }
 
+namespace {
+POINT dial_point(int cx, int cy, double radius, double fraction) {
+    const double angle = (1 - fraction) * std::numbers::pi;
+    return {cx + static_cast<LONG>(std::lround(radius * std::cos(angle))),
+            cy - static_cast<LONG>(std::lround(radius * std::sin(angle)))};
+}
+
+void dial(HDC dc, int width, int height, HFONT normal, HFONT heading, bool upload,
+          double scale, double speed, const std::wstring& text) {
+    const int cx = width / 2, cy = height - 60;
+    const int radius = std::min(cx - 28, cy - 38);
+    if (radius < 35) return;
+    const auto saved = SaveDC(dc);
+    SelectObject(dc,normal);
+    const auto caption = upload ? L"Wysyłanie na żywo" : L"Pobieranie na żywo";
+    RECT title{0,4,width,31};
+    DrawTextW(dc,caption,-1,&title,DT_CENTER|DT_SINGLELINE|DT_NOPREFIX);
+    const bool measured = speed >= 0 && scale > 0;
+    const double fraction = measured ? std::clamp(speed/scale,0.0,1.0) : 0.0;
+    const COLORREF accent = upload ? RGB(163,72,22) : RGB(0,109,99);
+    // Fill the arc in narrow segments so the active part tracks the same scale as the needle.
+    SelectObject(dc,GetStockObject(DC_BRUSH));
+    SelectObject(dc,GetStockObject(NULL_PEN));
+    for (int i=0; i<120; ++i) {
+        const double from=i/120.0, to=(i+1)/120.0;
+        POINT segment[]={dial_point(cx,cy,radius,from),dial_point(cx,cy,radius,to),
+                         dial_point(cx,cy,radius-8,to),dial_point(cx,cy,radius-8,from)};
+        SetDCBrushColor(dc,to<=fraction ? accent : GetSysColor(COLOR_3DFACE));
+        Polygon(dc,segment,4);
+    }
+    SelectObject(dc,GetStockObject(DC_PEN));
+    SetDCPenColor(dc,GetSysColor(COLOR_GRAYTEXT));
+    for (int i=0; i<=20; ++i) {
+        const double position=i/20.0;
+        const auto a=dial_point(cx,cy,radius-11,position);
+        const auto b=dial_point(cx,cy,radius-(i%5==0 ? 21 : 16),position);
+        MoveToEx(dc,a.x,a.y,nullptr); LineTo(dc,b.x,b.y);
+    }
+    if (measured) {
+        const auto tip=dial_point(cx,cy,radius-23,fraction);
+        const double angle=(1-fraction)*std::numbers::pi;
+        const LONG dx=static_cast<LONG>(std::lround(4*std::sin(angle)));
+        const LONG dy=static_cast<LONG>(std::lround(4*std::cos(angle)));
+        POINT needle[]={{cx-dx,cy-dy},tip,{cx+dx,cy+dy}};
+        const COLORREF ink=upload ? RGB(128,51,18) : RGB(0,72,86);
+        SetDCBrushColor(dc,ink); SetDCPenColor(dc,ink);
+        Polygon(dc,needle,3);
+        Ellipse(dc,cx-6,cy-6,cx+7,cy+7);
+    }
+    if (scale>0) {
+        std::wostringstream end; end << std::setprecision(5) << scale;
+        RECT lo{cx-radius-20,cy+3,cx-radius+20,cy+25},hi{cx+radius-29,cy+3,cx+radius+29,cy+25};
+        DrawTextW(dc,L"0",-1,&lo,DT_CENTER|DT_SINGLELINE|DT_NOPREFIX);
+        DrawTextW(dc,end.str().c_str(),-1,&hi,DT_CENTER|DT_SINGLELINE|DT_NOPREFIX);
+    }
+    SelectObject(dc,measured?heading:normal);
+    RECT value{4,cy+16,width-4,height};
+    DrawTextW(dc,text.c_str(),-1,&value,DT_CENTER|DT_SINGLELINE|DT_NOPREFIX);
+    if (saved) RestoreDC(dc,saved);
+}
+}
+
 void SpeedChart::paint(HDC dc, RECT bounds, HFONT normal, HFONT heading, bool upload) const {
     const int width = bounds.right - bounds.left, height = bounds.bottom - bounds.top;
     if (width < 200 || height < 60) return;
@@ -51,16 +115,10 @@ void SpeedChart::paint(HDC dc, RECT bounds, HFONT normal, HFONT heading, bool up
     SetBkMode(frame,TRANSPARENT);
     SetTextColor(frame,GetSysColor(COLOR_WINDOWTEXT));
     HGDIOBJ old_font = SelectObject(frame,normal);
-    const auto label = upload ? L"Wysyłanie na żywo" : L"Pobieranie na żywo";
-    RECT caption{12,12,185,42};
-    DrawTextW(frame,label,-1,&caption,DT_LEFT|DT_SINGLELINE|DT_NOPREFIX);
-    SelectObject(frame,heading);
-    RECT value{12,45,189,92};
-    auto text = readout();
-    if (points_.empty()) SelectObject(frame,normal);
-    DrawTextW(frame,text.c_str(),-1,&value,DT_LEFT|DT_SINGLELINE|DT_NOPREFIX);
-    SelectObject(frame,normal);
-    int left=194, right=width-12, top=30, bottom=height-15;
+    const int dial_width=std::min(292,width/2);
+    dial(frame,dial_width,height,normal,heading,upload,scale_mbps_,
+         points_.empty() ? -1.0 : points_.back().mbps,readout());
+    int left=dial_width+12, right=width-12, top=40, bottom=height-25;
     double ceiling=10;
     for (const auto& p : points_) ceiling=std::max(ceiling,p.mbps);
     const double magnitude=std::pow(10,std::floor(std::log10(ceiling)));

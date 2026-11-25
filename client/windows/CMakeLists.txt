@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(vipnet_diagnostics VERSION 0.5.3 LANGUAGES C CXX)
+project(vipnet_diagnostics VERSION 0.5.4 LANGUAGES C CXX)
 if(NOT WIN32 OR NOT MSVC)
   message(FATAL_ERROR "Windows SDK and MSVC required")
 endif()

@@ -1,5 +1,9 @@
 # Historia wydań
 
+## 0.5.4 · 25 listopada 2026
+
+- Aplikacja Windows pokazuje na żywo półokrągły prędkościomierz ze wskazówką, wartość w Mb/s i wykres ostatnich sześciu sekund. Skala tarczy pochodzi z profilu węzła. Odczyty wynikają z rzeczywistej liczby przesłanych bajtów.
+
 ## 0.5.3 · 25 listopada 2026
 
 - Okno Windows i oba panele pokazują połączenie używane przy rezerwacji HTTPS, sprzęt, karty i sygnał Wi-Fi. Raport podaje liczbę unikalnych sąsiadów widocznych dla Windows oraz osobno dla karty pomiarowej. Podczas pobierania i wysyłania wykres pokazuje bieżące Mb/s z liczników transferu.

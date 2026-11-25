@@ -6,6 +6,7 @@
 class Queue;
 struct LiveTraffic {
     std::atomic<unsigned long long> received{}, sent{};
+    std::atomic<unsigned long long> profile_bps{};
 };
 using PhaseMtr = std::function<void(const Target&, const std::string&, const std::atomic_bool&)>;
 Json measure_throughput(Queue&, const std::string&, const std::atomic_bool&, const PhaseMtr&,

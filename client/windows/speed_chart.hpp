@@ -7,7 +7,7 @@
 
 class SpeedChart {
 public:
-    void reset(std::uint64_t bytes);
+    void reset(std::uint64_t bytes, double scale_mbps);
     void sample(std::uint64_t bytes);
     std::wstring readout() const;
     void paint(HDC dc, RECT bounds, HFONT normal, HFONT heading, bool upload) const;
@@ -16,6 +16,7 @@ private:
     struct Counter { Clock::time_point at; std::uint64_t bytes; };
     struct Point { Clock::time_point at; double mbps; };
     Clock::time_point started_{};
+    double scale_mbps_ = 0;
     std::deque<Counter> counters_;
     std::deque<Point> points_;
 };
