@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "revision": 1,
   "profiles": [
     {
       "name": "Fortnite",
@@ -86,7 +87,24 @@
       "processes": [
         "League of Legends.exe"
       ],
-      "regions": []
+      "regions": [
+        {
+          "label": "EU Zachód · API League of Legends",
+          "host": "euw1.api.riotgames.com",
+          "method": "icmp",
+          "kind": "game_service",
+          "verified": "2026-11-25",
+          "source": "https://developer.riotgames.com/docs/lol"
+        },
+        {
+          "label": "EU Północ i Wschód · API League of Legends",
+          "host": "eun1.api.riotgames.com",
+          "method": "icmp",
+          "kind": "game_service",
+          "verified": "2026-11-25",
+          "source": "https://developer.riotgames.com/docs/lol"
+        }
+      ]
     },
     {
       "name": "Dota 2",
@@ -125,87 +143,212 @@
       "processes": [
         "TslGame.exe"
       ],
-      "regions": []
+      "regions": [
+        {
+          "label": "Lobby PUBG na PC",
+          "host": "prod-live-front.playbattlegrounds.com",
+          "method": "icmp",
+          "kind": "game_service",
+          "verified": "2026-11-25",
+          "source": "https://prod-live-front.playbattlegrounds.com/"
+        }
+      ]
     },
     {
       "name": "Call of Duty / Warzone",
       "processes": [
         "cod.exe"
       ],
-      "regions": []
+      "regions": [
+        {
+          "label": "Konto Call of Duty · logowanie",
+          "host": "profile.callofduty.com",
+          "method": "icmp",
+          "kind": "game_service",
+          "verified": "2026-11-25",
+          "source": "https://profile.callofduty.com/cod/login"
+        }
+      ]
     },
     {
       "name": "EA Sports FC",
       "processes": [
         "FC26.exe"
       ],
-      "regions": []
+      "regions": [
+        {
+          "label": "Ultimate Team · logowanie",
+          "host": "utas.mob.v1.prd.futc-ext.gcp.ea.com",
+          "method": "icmp",
+          "kind": "game_service",
+          "verified": "2026-11-25",
+          "source": "https://www.ea.com/ea-sports-fc/ultimate-team/web-app/config/config.json"
+        }
+      ]
     },
     {
       "name": "Apex Legends",
       "processes": [
         "r5apex.exe"
       ],
-      "regions": []
+      "regions": [
+        {
+          "label": "Frankfurt · punkt pomiarowy Amazon GameLift",
+          "host": "gamelift-ping.eu-central-1.api.aws",
+          "method": "icmp",
+          "kind": "network_probe",
+          "verified": "2026-11-25",
+          "source": "https://docs.aws.amazon.com/general/latest/gr/gamelift.html"
+        }
+      ]
     },
     {
       "name": "World of Warcraft",
       "processes": [
         "Wow.exe"
       ],
-      "regions": []
+      "regions": [
+        {
+          "label": "Europa · sieć Blizzard (Game Radar)",
+          "host": "185.60.112.157",
+          "method": "icmp",
+          "kind": "network_probe",
+          "verified": "2026-11-25",
+          "source": "https://nw-dlcdnet.asus.com/plugin/js/gameList.json"
+        }
+      ]
     },
     {
       "name": "Overwatch 2",
       "processes": [
         "Overwatch.exe"
       ],
-      "regions": []
+      "regions": [
+        {
+          "label": "Europa · sieć Blizzard (Game Radar)",
+          "host": "185.60.114.159",
+          "method": "icmp",
+          "kind": "network_probe",
+          "verified": "2026-11-25",
+          "source": "https://nw-dlcdnet.asus.com/plugin/js/gameList.json"
+        }
+      ]
     },
     {
       "name": "Rocket League",
       "processes": [
         "RocketLeague.exe"
       ],
-      "regions": []
+      "regions": [
+        {
+          "label": "Usługi sieciowe Epic Online Services",
+          "host": "api.epicgames.dev",
+          "method": "icmp",
+          "kind": "game_service",
+          "verified": "2026-11-25",
+          "source": "https://dev.epicgames.com/docs/epic-online-services/firewall-considerations"
+        }
+      ]
     },
     {
       "name": "Roblox",
       "processes": [
         "RobloxPlayerBeta.exe"
       ],
-      "regions": []
+      "regions": [
+        {
+          "label": "Katalog gier Roblox",
+          "host": "games.roblox.com",
+          "method": "icmp",
+          "kind": "game_service",
+          "verified": "2026-11-25",
+          "source": "https://create.roblox.com/docs/cloud/reference/domains/games"
+        }
+      ]
     },
     {
       "name": "Minecraft",
       "processes": [
         "Minecraft.Windows.exe"
       ],
-      "regions": []
+      "regions": [
+        {
+          "label": "CubeCraft · serwer Bedrock",
+          "host": "play.cubecraft.net",
+          "method": "icmp",
+          "kind": "game_server",
+          "verified": "2026-11-25",
+          "source": "https://help.cubecraft.net/en/article/how-do-i-join-cubecraft-bedrock-edition-1vh3z2x/"
+        },
+        {
+          "label": "Hypixel · serwer Java",
+          "host": "mc.hypixel.net",
+          "method": "icmp",
+          "kind": "game_server",
+          "verified": "2026-11-25",
+          "source": "https://support.hypixel.net/hc/en-us/articles/360019495360-How-to-Join-the-Hypixel-Server"
+        }
+      ]
     },
     {
       "name": "GTA Online",
       "processes": [
         "GTA5.exe"
       ],
-      "regions": []
+      "regions": [
+        {
+          "label": "Konto Rockstar Games · logowanie",
+          "host": "signin.rockstargames.com",
+          "method": "icmp",
+          "kind": "game_service",
+          "verified": "2026-11-25",
+          "source": "https://support.rockstargames.com/articles/672zA0oHIsLLItNZSyzas7/how-do-i-sign-up-for-a-rockstar-games-account"
+        }
+      ]
     },
     {
       "name": "Steam",
       "processes": [
         "steam.exe"
       ],
-      "regions": []
+      "regions": [
+        {
+          "label": "Londyn · serwer połączeń klienta Steam",
+          "host": "cmp1-lhr1.steamserver.net",
+          "method": "icmp",
+          "kind": "game_service",
+          "verified": "2026-11-25",
+          "source": "https://api.steampowered.com/ISteamDirectory/GetCMListForConnect/v1/?cellid=0&cmtype=websockets"
+        }
+      ]
     },
     {
       "name": "PlayStation Network",
       "processes": [],
-      "regions": []
+      "regions": [
+        {
+          "label": "Konto PlayStation · logowanie Sony",
+          "host": "ca.account.sony.com",
+          "method": "icmp",
+          "kind": "game_service",
+          "verified": "2026-11-25",
+          "source": "https://www.ea.com/ea-sports-fc/ultimate-team/web-app/config/config.json"
+        }
+      ]
     },
     {
       "name": "Xbox Network",
       "processes": [],
-      "regions": []
+      "regions": [
+        {
+          "label": "Konto Xbox · logowanie",
+          "host": "user.auth.xboxlive.com",
+          "method": "icmp",
+          "kind": "game_service",
+          "verified": "2026-11-25",
+          "source": "https://learn.microsoft.com/en-us/gaming/gdk/docs/services/fundamentals/s2s-auth-calls/service-authentication/live-website-authentication"
+        }
+      ]
     },
     {
       "name": "Własny profil",

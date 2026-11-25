@@ -1,5 +1,11 @@
 # Historia wydań
 
+## 0.7.6 · 2026-11-25
+
+- Wszystkie 18 nazwanych profili gier i platform ma adres do wyboru. Opis odróżnia serwer rozgrywki, przekaźnik, punkt pomiarowy i usługę gry. Pole adresu można zaznaczyć i skopiować.
+- Roblox i League of Legends mogą użyć publicznego adresu zapisanego przez grę na tym komputerze w ciągu ostatniej doby. Pomiar uruchamia użytkownik. Raport pokazuje również adres IP wybrany podczas rozwiązywania DNS.
+- Portable zawiera katalog na pierwsze uruchomienie offline i korzysta z aktualizacji dostarczanych przez portal.
+
 ## 0.7.5 · 2026-11-25
 
 - Instalator działa w prywatnym katalogu konta Windows, blokuje obie kopie programu pomocniczego na czas przygotowania i oczekuje na osobne potwierdzenie gotowości. Instalacja odbywa się z uprawnieniami zwykłego użytkownika. Podpisujący otrzymuje treść manifestu bezpośrednio z procesu pakowania.

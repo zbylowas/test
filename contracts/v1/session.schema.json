@@ -129,6 +129,11 @@
           "enum": [
             "official_diagnostic",
             "steam_relay",
+            "game_server",
+            "game_service",
+            "network_probe",
+            "session_relay",
+            "session_server",
             "user_supplied"
           ]
         }

@@ -22,6 +22,7 @@ struct Reply {
 
 Reply tcp_probe(Target target, int ttl, unsigned timeout_ms);
 Target parse_target(const char* text);
+bool public_game_target(const Target& target);
 class Probe {
 public:
     explicit Probe(const Target& target);

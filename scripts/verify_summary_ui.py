@@ -79,6 +79,28 @@ def preserve_placement():
                 except FileNotFoundError:
                     pass
 
+def verify_offline_game_addresses(win):
+    games = json.loads((Path(__file__).resolve().parents[1] / "server/game-profiles.json").read_text("utf-8"))["profiles"]
+    get = lambda i: user.GetDlgItem(win, i)
+    send = lambda i, m, a=0, b=0: user.SendMessageW(get(i), m, a, b)
+    def choose(control, index):
+        assert send(control, 0x014E, index) == index
+        user.SendMessageW(win, 0x0111, control | (1 << 16), get(control))
+    send(206, 0x00F5)
+    wait(lambda: send(313, 0x0146) == len(games), 30)
+    for i, game in enumerate(games):
+        choose(313, i)
+        assert caption(get(313)) == game["name"]
+        for region in game["regions"]:
+            label = ctypes.create_unicode_buffer(region["label"])
+            index = send(316, 0x0158, -1, ctypes.addressof(label))  # CB_FINDSTRINGEXACT
+            assert index >= 0, region["label"]
+            choose(316, index)
+            assert caption(get(312)) == region["host"] and user.IsWindowEnabled(get(312)), (game["name"], region["label"], caption(get(312)), bool(user.IsWindowEnabled(get(312))))
+        choose(316, send(316, 0x0146) - 1)
+        assert caption(get(316)) == "Własny cel" and user.IsWindowEnabled(get(312))
+
+
 def verify_archive(exe, origin, tmp):
     class Credential(ctypes.Structure):
         _fields_ = [("Flags",wintypes.DWORD),("Type",wintypes.DWORD),("TargetName",wintypes.LPWSTR),
@@ -110,6 +132,8 @@ def verify_archive(exe, origin, tmp):
         doc = {"session_id":sid,"started_at":"2026-01-12T12:00:00Z","state":"cancelled",
                "measurement":params,"mtr_samples":[],"synchronized":False}
         (archive/(sid+".json")).write_text(json.dumps(doc),encoding="utf-8")
+        cache = archive.parent.parent / ("games-" + hashlib.sha256(origin.encode("utf-16-le")).hexdigest() + ".json")
+        cache.write_text(json.dumps({"version": 1, "profiles": [{"name":"Legacy", "regions":[], "processes":[]}]}), encoding="utf8")
         env = dict(os.environ, VIPNET_DESKTOP_ORIGIN=origin, LOCALAPPDATA=tmp)
         process = subprocess.Popen([str(exe)],env=env)
         win = None
@@ -121,6 +145,7 @@ def verify_archive(exe, origin, tmp):
             # A usable client-code control specifically acknowledges the seeded credential.
             wait(lambda: user.IsWindowVisible(win) and user.IsWindowEnabled(get(209))
                  and user.IsWindowEnabled(get(102)))
+            verify_offline_game_addresses(win)
             for keyboard in (True,False):
                 # Navigation is setup; exercise the actual Enter and button activation below.
                 user.SendMessageW(win, 0x0111, 209, get(209))
@@ -192,6 +217,7 @@ def run(exe):
                 assert bounds(get(310)).bottom <= bounds(get(311)).top
                 assert bool(user.IsWindowVisible(get(331))) == (page == 11)
                 assert bool(user.IsWindowVisible(get(315))) == (page in (7,8))
+            verify_offline_game_addresses(win)
             click(108)
             assert not user.IsWindowVisible(get(112))
             user.SendMessageW(get(106), 0x014E, 1, 0)

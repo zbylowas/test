@@ -191,9 +191,14 @@ Json run_route(const RouteRequest& request,const std::atomic_bool& cancel,
     for(auto row=result;row;row=row->ai_next){
         char addr[NI_MAXHOST]{};
         if (getnameinfo(row->ai_addr,static_cast<int>(row->ai_addrlen),addr,sizeof addr,nullptr,0,NI_NUMERICHOST)) continue;
-        try {targets.push_back(parse_target(addr));break;} catch(const std::invalid_argument&) {}
+        try {
+            auto target=parse_target(addr);
+            if (request.purpose=="gaming" && request.target_kind!="user_supplied" && !public_game_target(target)) continue;
+            targets.push_back(std::move(target));
+            break;
+        } catch(const std::invalid_argument&) {}
     }
-    if (targets.empty()) throw std::invalid_argument("Cel nie ma obsługiwanego adresu unicast.");
+    if (targets.empty()) throw std::invalid_argument("Brak dozwolonego adresu IP dla wybranego celu.");
     Queue queue;
     const auto id=session_id(), started=utc_now();
     Options options{request.protocol,request.interval,false};
@@ -214,7 +219,7 @@ Json run_route(const RouteRequest& request,const std::atomic_bool& cancel,
     queue.seal(id,state);
     bool synced=false;
     try {synced=queue.sync(false)==0;} catch(const std::exception&){}
-    return {{"session_id",id},{"version","0.7.5"},{"started_at",started},{"ended_at",utc_now()},{"device",device},
+    return {{"session_id",id},{"version","0.7.6"},{"started_at",started},{"ended_at",utc_now()},{"device",device},
             {"state",state},{"error",error},{"measurement",parameters},{"mtr_samples",std::move(samples)},{"synchronized",synced}};
 }
 
@@ -250,7 +255,7 @@ Json run_desktop_test(const std::atomic_bool& cancel, const std::function<void(c
         try { delivered = queue.sync(false) == 0; } catch (const std::exception&) { }
         return {{"device",std::move(device)},{"observed_ip",observed_ip.empty()?Json(nullptr):Json(observed_ip)},
                 {"desktop_trace",{{"session_id",id},{"download",live.trace(0)},{"upload",live.trace(1)}}},
-                {"mtr_samples",std::move(samples)},{"version","0.7.5"},{"throughput",std::move(report)},{"inventory",std::move(inventory)},{"synchronized",delivered}};
+                {"mtr_samples",std::move(samples)},{"version","0.7.6"},{"throughput",std::move(report)},{"inventory",std::move(inventory)},{"synchronized",delivered}};
     } catch (...) {
         if (!sealed) queue.seal(id, "partial");
         throw;
@@ -261,7 +266,7 @@ int diagnostics_main(int argc, char** argv) {
     if (argc == 2 || argc == 3) {
         try {
             std::string_view cmd(argv[1]);
-            if (cmd == "--version" && argc == 2) { std::cout << "0.7.5\n"; return 0; }
+            if (cmd == "--version" && argc == 2) { std::cout << "0.7.6\n"; return 0; }
             if (cmd == "--status" && argc == 2) { Queue().status(); return 0; }
             if (cmd == "--sync" && argc == 3 && std::string_view(argv[2]) == "--retry-blocked")
                 return Queue().sync(false, true);

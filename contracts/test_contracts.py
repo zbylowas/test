@@ -122,6 +122,24 @@ class ContractTests(unittest.TestCase):
             with self.assertRaises(ValidationError):
                 schema.validate(catalog | {"profiles": [profile | {"regions": [region | bad]}]})
 
+    def test_named_games_offer_documented_targets_and_support_old_catalogs(self):
+        catalog = read(BASE.parents[1] / "server/game-profiles.json")
+        schema = validator("game-profiles.schema.json")
+        schema.validate(catalog)
+        self.assertGreaterEqual(catalog["revision"], 1)
+        legacy = {"version": 1, "profiles": [{"name": "Legacy", "processes": [], "regions": []}]}
+        schema.validate(legacy)
+        profiles = {game["name"]: game["regions"] for game in catalog["profiles"]}
+        self.assertEqual([name for name, rows in profiles.items() if not rows], ["Własny profil"])
+        for name, rows in profiles.items():
+            self.assertEqual(len(rows), len({r["host"] for r in rows}), name)
+        self.assertEqual({r["kind"] for r in profiles["Minecraft"]}, {"game_server"})
+        for name in ("Roblox", "League of Legends", "PUBG: BATTLEGROUNDS"):
+            self.assertTrue(all(r["kind"] == "game_service" for r in profiles[name]), name)
+        kinds = read(BASE / "session.schema.json")["properties"]["measurement"]["properties"]["target_kind"]["enum"]
+        self.assertTrue({"session_server", "session_relay", "user_supplied"}.issubset(kinds))
+        self.assertTrue(all(r["kind"] in kinds for rows in profiles.values() for r in rows))
+
     def test_windows_game_profiles(self):
         games = read(BASE.parents[1] / "server/game-profiles.json")["profiles"]
         by_name = {game["name"].casefold(): game for game in games}

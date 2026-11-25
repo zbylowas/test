@@ -1,6 +1,7 @@
 #include "throughput.hpp"
 #include "summary_view.hpp"
 #include "update.hpp"
+#include "game_relay.hpp"
 #include "desktop_brand.hpp"
 #pragma comment(linker,"/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 #include "inventory_report.hpp"
@@ -314,14 +315,41 @@ void start_catalog(HWND w){
     catalog_loading=true;
     catalog_job=std::jthread([w,host=origin()]{
         auto result=std::make_unique<std::pair<Json,std::wstring>>();
+        auto bundled=Json::parse(bundled_game_catalog);
+        const auto revision=bundled.at("revision").get<int>();
+        auto usable=[revision](const Json& doc){
+            if(!doc.is_object() || doc.value("version",0)!=1 || doc.value("revision",0)<revision ||
+               !doc.contains("profiles") || !doc["profiles"].is_array() || doc["profiles"].empty() || doc["profiles"].size()>64) return false;
+            for(const auto& game:doc["profiles"]){
+                if(!game.is_object() || !field(game,"name").is_string() || !field(game,"processes").is_array() || !field(game,"regions").is_array()) return false;
+                for(const auto& region:game.at("regions")){
+                    if(!region.is_object()) return false;
+                    for(const char* key:{"host","label","kind","verified","source"})
+                        if(!field(region,key).is_string()) return false;
+                    if(region["kind"]=="session_relay" || region["kind"]=="session_server") return false;
+                }
+            }
+            return true;
+        };
         try{
-            result->first=fetch_game_profiles(host);
-            auto path=catalog_file();std::filesystem::create_directories(path.parent_path());
-            write_atomic(path,result->first.dump());
+            auto online=fetch_game_profiles(host);
+            if(!usable(online)) throw std::runtime_error("older_catalog");
+            result->first=std::move(online);
+            try {
+                auto path=catalog_file();std::filesystem::create_directories(path.parent_path());
+                write_atomic(path,result->first.dump());
+            } catch(const std::exception&) {}
         }catch(const std::exception&){
-            std::ifstream cached(catalog_file(),std::ios::binary);
-            if(cached)result->first=Json::parse(cached,nullptr,false);
-            result->second=result->first.is_object()?L"Katalog z ostatniego połączenia.":L"Katalog gier niedostępny. Możesz podać własny cel.";
+            result->first=std::move(bundled);
+            result->second=L"Katalog dołączony do aplikacji.";
+            try {
+                std::ifstream cached(catalog_file(),std::ios::binary);
+                auto prior=Json::parse(cached,nullptr,false);
+                if(usable(prior)){
+                    result->first=std::move(prior);
+                    result->second=L"Katalog z ostatniego połączenia.";
+                }
+            } catch(const std::exception&) {}
         }
         if(PostMessageW(w,catalog_message,0,reinterpret_cast<LPARAM>(result.get())))result.release();
     });
@@ -335,19 +363,68 @@ bool game_running(const Json& names){
     }while(!found && Process32NextW(handle,&entry));
     CloseHandle(handle);return found;
 }
+std::filesystem::path league_logs(){
+    auto fallback=std::filesystem::path(environment(L"SystemDrive")+L"\\Riot Games\\League of Legends\\Logs\\GameLogs");
+    HANDLE snapshot=CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS,0);
+    if(snapshot==INVALID_HANDLE_VALUE) return fallback;
+    PROCESSENTRY32W p{};p.dwSize=sizeof p;
+    if(Process32FirstW(snapshot,&p)) do {
+        if(_wcsicmp(p.szExeFile,L"League of Legends.exe")!=0) continue;
+        HANDLE game=OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION,FALSE,p.th32ProcessID);
+        if(!game) continue;
+        std::wstring image(32768,L'\0');DWORD length=static_cast<DWORD>(image.size());
+        if(QueryFullProcessImageNameW(game,0,image.data(),&length)){
+            image.resize(length);
+            fallback=std::filesystem::path(image).parent_path().parent_path()/L"Logs"/L"GameLogs";
+        }
+        CloseHandle(game);
+        break;
+    }while(Process32NextW(snapshot,&p));
+    CloseHandle(snapshot);
+    return fallback;
+}
 const Json& selected_game(HWND w){
     const auto& profiles=field(game_catalog,"profiles");auto i=choice(w,choice_id);
     static const Json empty;
     return profiles.is_array() && i>=0 && static_cast<size_t>(i)<profiles.size()?profiles[i]:empty;
 }
+std::wstring target_description(const std::string& kind){
+    if(kind=="game_server") return L"Adres, pod którym można dołączyć do gry. Test mierzy czas odpowiedzi ICMP.";
+    if(kind=="steam_relay") return L"Przekaźnik Steam. Pomiar obejmuje drogę do przekaźnika.";
+    if(kind=="session_server") return L"Serwer meczu, z którym League of Legends połączyło się na tym komputerze w ostatnich 24 godzinach.";
+    if(kind=="session_relay") return L"Przekaźnik użyty przez Roblox na tym komputerze w ostatnich 24 godzinach.";
+    if(kind=="game_service") return L"Usługa wskazana w profilu. Ping podczas rozgrywki może być inny.";
+    if(kind=="network_probe") return L"Punkt pomiarowy w sieci dostawcy. Wynik dotyczy drogi do tego punktu.";
+    return L"Regionalny adres diagnostyczny wskazany przez wydawcę.";
+}
 void game_region(HWND w){
+    EnableWindow(GetDlgItem(w,target_id),!busy);
     const auto& g=selected_game(w);auto& regions=field(g,"regions");int i=choice(w,region_id);
     if(regions.is_array() && i>=0 && static_cast<size_t>(i)<regions.size()){
-        auto& r=regions[i];set_control(w,target_id,wide(r.value("host","")));EnableWindow(GetDlgItem(w,target_id),FALSE);
-        view.route_status(r.value("kind","")=="steam_relay"?L"Trasa do przekaźnika Steam. Ping w meczu może być inny.":L"Regionalny cel diagnostyczny · "+wide(r.value("verified",""))+L" · źródło w szczegółach profilu");
-    }else{set_control(w,target_id,L"");EnableWindow(GetDlgItem(w,target_id),TRUE);view.route_status(catalog_error.empty()?L"Podaj własny cel dla wybranego profilu.":catalog_error);}
+        auto& r=regions[i];set_control(w,target_id,wide(r.value("host","")));SendDlgItemMessageW(w,target_id,EM_SETREADONLY,TRUE,0);
+        view.route_status(target_description(r.value("kind","")));
+    }else{set_control(w,target_id,L"");SendDlgItemMessageW(w,target_id,EM_SETREADONLY,FALSE,0);view.route_status(catalog_error.empty()?L"Podaj własny cel dla wybranego profilu.":catalog_error);}
 }
 void game_selection(HWND w){
+    auto index=choice(w,choice_id);
+    if(game_catalog.is_object() && index>=0 && static_cast<size_t>(index)<game_catalog.at("profiles").size()){
+        auto& game=game_catalog["profiles"][index];
+        auto name=game.value("name","");
+        if(name=="Roblox" || name=="League of Legends"){
+            bool roblox=name=="Roblox";
+            std::string kind=roblox?"session_relay":"session_server";
+            auto& rows=game.at("regions");
+            rows.erase(std::remove_if(rows.begin(),rows.end(),[&](const Json& r){return r.value("kind","")==kind;}),rows.end());
+            auto now=std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now());
+            std::optional<GameRelay> recent;
+            if(roblox){
+                auto base=environment(L"LOCALAPPDATA");
+                if(!base.empty()) recent=recent_roblox_relay(std::filesystem::path(base)/L"Roblox"/L"logs",now);
+            }else recent=recent_league_match(league_logs(),now);
+            if(recent) rows.insert(rows.begin(),Json{{"label",roblox?"Przekaźnik ostatniej gry Roblox":"Serwer ostatniego meczu LoL"},
+                {"host",recent->host},{"method","icmp"},{"kind",kind},{"verified",recent->utc},{"source","dziennik gry na tym komputerze"}});
+        }
+    }
     auto& g=selected_game(w);std::vector<std::wstring> regions;
     for(const auto& r:field(g,"regions"))regions.push_back(wide(r.value("label","")));
     regions.push_back(L"Własny cel");
@@ -365,7 +442,7 @@ DetailPage route_display(int page,const Json& doc){
         auto m=field(doc,"measurement");
         auto state=doc.value("state","");auto prefix=state=="completed"?L"Zakończono":state=="cancelled"?L"Zatrzymano":L"Pomiar częściowy";
         p.subtitle=std::wstring(prefix)+L" · "+wide(m.value("target_name",""))+L" · "+(doc.value("synchronized",false)?L"zapisano w panelu":L"zapis lokalny");
-    }else if(p.rows.empty())p.subtitle=page==7?L"Podaj cel i uruchom pomiar trasy.":page==8?L"Podaj cel i wybierz czas obserwacji.":L"Wybierz grę i region lub wpisz własny cel.";
+    }else if(p.rows.empty())p.subtitle=page==7?L"Podaj cel i uruchom pomiar trasy.":page==8?L"Podaj cel i wybierz czas obserwacji.":L"Wybierz grę i cel pomiaru lub wpisz własny adres.";
     return p;
 }
 void bind_result(const Json& doc){
@@ -379,6 +456,7 @@ void route_report(HWND w,int mode,bool raw){
     const auto& m=doc.at("measurement");auto p=route_display(mode,doc);
     std::wostringstream out;
     out<<wide(m.value("profile_name",""))<<L" · "<<wide(m.value("target_name",""))<<L"\r\n"<<p.subtitle<<L"\r\n";
+    for(const auto& ip:field(m,"targets")) if(ip.is_string())out<<L"Adres IP użyty w teście · "<<wide(ip.get<std::string>())<<L"\\r\\n";
     out<<L"Rozpoczęcie UTC · "<<wide(doc.value("started_at",""))<<L"\r\nZakończenie UTC · "<<wide(doc.value("ended_at",""))<<L"\r\n\r\n";
     if(raw)out<<wide(doc.dump(2));
     else for(const auto& row:p.rows){
@@ -392,12 +470,18 @@ void show_profiles_info(HWND w){
     if(route_mode)return;
     game_results_visible=false;bind_result(nullptr);
     auto& g=selected_game(w);if(!g.is_object())return;
-    DetailPage p{L"Wybierz grę i region.",{{L"Profil",200},{L"Status lub cel",400}},{}};
+    DetailPage p{L"Wybierz grę i cel pomiaru.",{{L"Profil",200},{L"Status lub cel",400}},{}};
     auto name=wide(g.value("name",""));
     bool running=game_running(field(g,"processes"));
     p.rows.push_back({{name,running?L"Rozpoznano uruchomiony proces":L"Brak potwierdzonego procesu"},L"Dopasowanie nazwy procesu w Windows. Aktywny serwer meczu pozostaje nieustalony.",{},{}});
     for(const auto& r:field(g,"regions"))
-        p.rows.push_back({{wide(r.value("label","")),wide(r.value("host",""))},std::wstring(r.value("kind","")=="steam_relay"?L"Przekaźnik sieci Steam. Pomiar ICMP obejmuje drogę do przekaźnika. ":L"Regionalny cel diagnostyczny ICMP. ")+L"Weryfikacja "+wide(r.value("verified",""))+L" · "+wide(r.value("source","")),{},{}});
+        p.rows.push_back({{wide(r.value("label","")),wide(r.value("host",""))},target_description(r.value("kind",""))+L" Weryfikacja "+wide(r.value("verified",""))+L" · "+wide(r.value("source","")),{},{}});
+    if(name==L"Roblox" && std::none_of(field(g,"regions").begin(),field(g,"regions").end(),
+        [](const Json& r){return r.value("kind","")=="session_relay";}))
+        p.rows.push_back({{L"Ostatnia gra",L"Brak świeżego adresu przekaźnika"},L"Po dołączeniu do gry w aplikacji Roblox na Windows wybierz profil ponownie. Adres jest dostępny przez 24 godziny, jeśli Roblox zapisze go w swoim dzienniku.",{},{}});
+    if(name==L"League of Legends" && std::none_of(field(g,"regions").begin(),field(g,"regions").end(),
+        [](const Json& r){return r.value("kind","")=="session_server";}))
+        p.rows.push_back({{L"Ostatni mecz",L"Brak świeżego adresu meczu"},L"Po dołączeniu do meczu wybierz profil ponownie. Przy instalacji poza domyślnym katalogiem pozostaw grę uruchomioną.",{},{}});
     if(p.rows.size()==1)p.rows.push_back({{L"Host regionalny",L"Brak zweryfikowanego celu"},L"Możesz podać pojedynczy adres otrzymany od operatora gry.",{},{}});
     view.table(std::move(p));game_region(w);
 }
@@ -478,6 +562,7 @@ void navigate(HWND w,int page){
         view.choices(mode_id,page==7?std::vector<std::wstring>{L"ICMP",L"TCP 443"}:std::vector<std::wstring>{L"Ping ICMP"});
         view.choices(choice_id,page==7?std::vector<std::wstring>{L"20 przebiegów",L"100 przebiegów",L"300 przebiegów"}:
             std::vector<std::wstring>{L"1 minuta",L"5 minut",L"15 minut",L"30 minut",L"60 minut",L"Do zatrzymania"});
+        SendDlgItemMessageW(w,target_id,EM_SETREADONLY,FALSE,0);
         if(page==7)favorites(w,false);
         auto& peer=field(field(last_report,"throughput"),"peer");set_control(w,target_id,peer.is_string()?wide(peer.get<std::string>()):L"");
     }
@@ -763,7 +848,7 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
                 route_reports[mode-6]=std::move(worker_report);if(mode==6)game_results_visible=true;view.table(route_display(mode,route_reports[mode-6]));bind_result(route_reports[mode-6]);
             }
             if(!worker_error.empty())view.route_status(L"Pomiar lub zapis nie powiódł się · "+worker_error);
-            if(mode==6 && field(selected_game(w),"regions").is_array() && choice(w,region_id)>=0 && static_cast<size_t>(choice(w,region_id))<selected_game(w).at("regions").size())EnableWindow(GetDlgItem(w,target_id),FALSE);
+            if(mode==6 && field(selected_game(w),"regions").is_array() && choice(w,region_id)>=0 && static_cast<size_t>(choice(w,region_id))<selected_game(w).at("regions").size())SendDlgItemMessageW(w,target_id,EM_SETREADONLY,TRUE,0);
             active_samples=Json::array();new_samples=Json::array();return 0;
         }
         for(int i=0;i<12;++i)EnableWindow(GetDlgItem(w,nav_id+i),TRUE);

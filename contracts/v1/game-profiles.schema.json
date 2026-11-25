@@ -10,6 +10,7 @@
     "version": {
       "const": 1
     },
+    "revision": {"type": "integer", "minimum": 1},
     "profiles": {
       "type": "array",
       "maxItems": 64,
@@ -66,7 +67,7 @@
                   "const": "icmp"
                 },
                 "kind": {
-                  "enum": ["official_diagnostic", "steam_relay"]
+                  "enum": ["official_diagnostic", "steam_relay", "game_server", "game_service", "network_probe"]
                 },
                 "verified": {
                   "type": "string",

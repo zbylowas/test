@@ -51,6 +51,23 @@ Target parse_target(const char* text) {
     return target;
 }
 
+bool public_game_target(const Target& target) {
+    if (target.ipv6()) {
+        const auto* bytes=target.address.Ipv6.sin6_addr.s6_addr;
+        if ((bytes[0] & 0xe0)!=0x20) return false;
+        if (bytes[0]==0x20 && bytes[1]==0x01) {
+            if (bytes[2]<2 || (bytes[2]==0x0d && bytes[3]==0xb8)) return false;
+        }
+        return !(bytes[0]==0x20 && bytes[1]==0x02) && !(bytes[0]==0x3f && bytes[1]==0xff && (bytes[2]&0xf0)==0);
+    }
+    const auto ip=ntohl(target.address.Ipv4.sin_addr.s_addr);
+    auto a=ip>>24, b=(ip>>16)&255, c=(ip>>8)&255;
+    return a!=0 && a!=10 && a!=127 && a<224 && !(a==100 && b>=64 && b<=127) &&
+        !(a==169 && b==254) && !(a==172 && b>=16 && b<=31) && !(a==192 && b==168) &&
+        !(a==192 && ((b==0 && (c==0 || c==2)) || (b==88 && c==99))) &&
+        !(a==198 && (b==18 || b==19 || (b==51 && c==100))) && !(a==203 && b==0 && c==113);
+}
+
 Probe::Probe(const Target& target) : target_(target) {
     if (target.ipv6()) {
         MIB_IPFORWARD_ROW2 route{};

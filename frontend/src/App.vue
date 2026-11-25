@@ -5,6 +5,12 @@ import InventoryReport, {type Inventory, type Reading} from './InventoryReport.v
 import HostPings, {type HostMeasurements} from './HostPings.vue'
 import TransferTrace, {type CounterTrace} from './TransferTrace.vue'
 import RouteFindings, {type Finding} from './RouteFindings.vue'
+const gameTargets: Record<string, string> = {
+  official_diagnostic: 'regionalny host diagnostyczny', steam_relay: 'przekaźnik Steam',
+  game_server: 'adres dołączenia do gry', game_service: 'usługa gry lub platformy',
+  network_probe: 'punkt pomiarowy sieci', session_relay: 'przekaźnik ostatniej sesji Roblox',
+  session_server: 'serwer ostatniego meczu League of Legends', user_supplied: 'adres użytkownika'
+}
 const exporting=ref(false), exportError=ref('')
 const showSources=import.meta.env.VITE_SOURCE_VISIBILITY!=='private'
 
@@ -139,7 +145,7 @@ function printReport(){window.print()}
 <header><div class="bar"><a class="brand" href="/"><span class="mark" aria-hidden="true">▥</span> VIP-NET</a><nav aria-label="Panele"><a href="/klient" :aria-current="!landing&&!admin?'page':undefined">Panel klienta</a><a href="/admin" :aria-current="admin?'page':undefined">Administracja</a></nav></div></header>
 <main>
 <template v-if="landing">
-<section class="hero"><div><p class="eyebrow">Diagnostyka łącza</p><h1>Sprawdź swoje<br>połączenie.</h1><p class="lead">Zmierz pobieranie, wysyłanie i opóźnienie pod obciążeniem. W aplikacji zobaczysz wykresy obu kierunków, a po teście czas odpowiedzi i podsumowanie stanu połączenia.</p><a class="button" href="/pobierz/VIP-NET-Diagnostyka.exe" download>↓ &nbsp; Pobierz aplikację</a><small>Windows 10 i 11 · x64 · wersja testowa 0.7.5</small><small>{{publisher}} <a href="/pobierz/VIP-NET-Diagnostyka.exe.sha256">Suma kontrolna SHA-256</a><template v-if="showSources"> · <a href="https://github.com/zbylowas/test">Kod źródłowy (MIT)</a> · <a href="https://github.com/zbylowas/test#code-signing-policy">Zasady podpisywania aplikacji</a></template></small></div>
+<section class="hero"><div><p class="eyebrow">Diagnostyka łącza</p><h1>Sprawdź swoje<br>połączenie.</h1><p class="lead">Zmierz pobieranie, wysyłanie i opóźnienie pod obciążeniem. W aplikacji zobaczysz wykresy obu kierunków, a po teście czas odpowiedzi i podsumowanie stanu połączenia.</p><a class="button" href="/pobierz/VIP-NET-Diagnostyka.exe" download>↓ &nbsp; Pobierz aplikację</a><small>Windows 10 i 11 · x64 · wersja testowa 0.7.6</small><small>{{publisher}} <a href="/pobierz/VIP-NET-Diagnostyka.exe.sha256">Suma kontrolna SHA-256</a><template v-if="showSources"> · <a href="https://github.com/zbylowas/test">Kod źródłowy (MIT)</a> · <a href="https://github.com/zbylowas/test#code-signing-policy">Zasady podpisywania aplikacji</a></template></small></div>
 <aside class="guide"><h2>Jak wykonać pomiar</h2><ol><li>Pobierz i otwórz <strong>VIP-NET-Diagnostyka.exe</strong>.</li><li>Kliknij <strong>Rozpocznij test</strong> i poczekaj na raport.</li><li>Aby wrócić do wyników w przeglądarce, wybierz <strong>Kopiuj kod do panelu</strong> w aplikacji.</li></ol><a href="/klient">Otwórz historię pomiarów →</a></aside></section>
 </template>
 <template v-else-if="!logged">
@@ -158,7 +164,7 @@ function printReport(){window.print()}
 <div class="pager" v-if="offset||more"><button class="quiet" :disabled="!offset||busy" @click="list(offset-20)">Poprzednie</button><button class="quiet" :disabled="!more||busy" @click="list(offset+20)">Następne</button></div>
 <article v-if="selected" class="report"><p class="eyebrow">Raport z pomiaru</p><h2>{{date(selected.started_at)}}</h2><small>Sesja {{selected.session_id}}</small>
 <p>IP {{selected.ip_source==='reservation'?'przy rezerwacji':'przy synchronizacji'}} · {{selected.ip}}<span v-if="selected.ip!==selected.sync_ip"> · IP synchronizacji {{selected.sync_ip}}</span><br>Identyfikator komputera · {{selected.device_id||'Brak w zapisie'}} <span v-if="selected.device_reason">({{selected.device_reason}})</span></p>
-<p v-if="selected.measurement?.purpose">Rodzaj pomiaru · {{selected.measurement.profile_name || selected.measurement.purpose}}<br>Wybrany cel · {{selected.measurement.target_name}} <span v-if="selected.measurement.region">({{selected.measurement.region}})</span><span v-if="selected.measurement.target_kind"> · {{selected.measurement.target_kind==='official_diagnostic'?'regionalny host diagnostyczny':selected.measurement.target_kind==='steam_relay'?'przekaźnik Steam':'adres użytkownika'}}</span><br>Adres użyty podczas testu · {{selected.measurement.targets.join(', ')}}</p>
+<p v-if="selected.measurement?.purpose">Rodzaj pomiaru · {{selected.measurement.profile_name || selected.measurement.purpose}}<br>Wybrany cel · {{selected.measurement.target_name}} <span v-if="selected.measurement.region">({{selected.measurement.region}})</span><span v-if="selected.measurement.target_kind"> · {{gameTargets[selected.measurement.target_kind] ?? 'inny cel'}}</span><br>Adres użyty podczas testu · {{selected.measurement.targets.join(', ')}}</p>
 <p v-if="loadingReport" role="status">Pobieranie raportu…</p><p v-else-if="reportError" role="alert">{{reportError}}</p>
 <template v-else>
 <div v-if="transfer"><p v-if="transfer.throughput.error" role="status">Pomiar częściowy · {{transfer.throughput.error}}</p><div class="metrics"><section v-for="dir in directions" :key="dir"><h3>{{dir==='download'?'Prędkość pobierania':'Prędkość wysyłania'}}</h3><strong>{{number(transfer.interpretation.directions[dir]?.goodput_mbps)}} <em>Mb/s</em></strong><p>{{diagnosis[transfer.interpretation.directions[dir]?.bufferbloat]}}</p></section></div>
@@ -189,5 +195,5 @@ function printReport(){window.print()}
 <details v-if="admin && inventory"><summary>Surowa inwentaryzacja Windows</summary><pre>{{JSON.stringify(inventory,null,2)}}</pre></details>
 <div class="actions"><button class="quiet" @click="printReport">Drukuj / zapisz PDF</button><button class="quiet" :disabled="exporting" @click="exportReport('json')">Pobierz raport JSON</button><button class="quiet" :disabled="exporting" @click="exportReport('csv')">MTR CSV</button><button class="quiet" :disabled="exporting" @click="exportReport('txt')">MTR TXT</button><span v-if="exportError" role="alert">{{exportError}}</span></div>
 </template></article>
-</template></main><footer><span>VIP-NET Internet Diagnostics</span><span>Wersja 0.7.5</span></footer>
+</template></main><footer><span>VIP-NET Internet Diagnostics</span><span>Wersja 0.7.6</span></footer>
 </template>

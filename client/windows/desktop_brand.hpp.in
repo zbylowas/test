@@ -1,4 +1,5 @@
 #pragma once
+inline constexpr char bundled_game_catalog[]=R"catalog(@BUNDLED_GAME_CATALOG@)catalog";
 inline constexpr wchar_t default_server[]=LR"origin(@NETDIAG_DESKTOP_ORIGIN@)origin";
 inline constexpr wchar_t desktop_version[]=L"@PROJECT_VERSION@";
 inline constexpr char project_signer_b64[]="@PROJECT_SIGNER_B64@";
