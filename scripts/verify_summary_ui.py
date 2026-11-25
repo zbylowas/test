@@ -179,11 +179,13 @@ def run(exe):
             assert after.right - after.left < before.right - before.left
             assert caption(get(200)) == "Podsumowanie"
             click(211)
-            assert user.IsWindowVisible(get(310)) and user.SendMessageW(get(310), 0x1004, 0, 0) == 4
+            assert user.IsWindowVisible(get(310)) and user.SendMessageW(get(310), 0x1004, 0, 0) == 5
+            assert caption(get(331)) == "Sprawdź aktualizacje"
             for page in (1,2,3,4,5,7,8,9,10,11):
                 click(200 + page)
                 assert user.IsWindowVisible(get(310)) and not user.IsWindowVisible(get(112))
                 assert bounds(get(310)).bottom <= bounds(get(311)).top
+                assert bool(user.IsWindowVisible(get(331))) == (page == 11)
                 assert bool(user.IsWindowVisible(get(315))) == (page in (7,8))
             click(108)
             assert not user.IsWindowVisible(get(112))
