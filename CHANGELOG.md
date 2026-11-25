@@ -1,5 +1,15 @@
 # Historia wydań
 
+## 0.7.1 · Windows, MTR i gry
+
+- Jedenaście szczegółowych widoków ze wspólną nawigacją, tabele, wykresy i historia.
+- Własne cele MTR, ICMP i TCP 443, statystyki skoków i porównanie dwóch tras. Regionalne testy gier korzystają z katalogu serwera. Monitoring zapisuje przerwane sesje.
+- Panele odczytują opcjonalne parametry sesji i umożliwiają eksport surowych próbek w formatach JSON, CSV i TXT. Wydruk strony umożliwia zapis do PDF.
+
+## 0.6.0 · podgląd Windows
+
+- Jasny ekran Podsumowanie, dwa profile testu, wykresy na żywo, siedem metryk, szczegóły diagnostyki i obsługa starszych raportów. Serwer 0.6.0 ogłasza obsługę nowych serii. Panele i eksport JSON zachowują chwilowe prędkości w postaci źródłowych liczników.
+
 ## 0.5.5 · 25 listopada 2026
 
 - Aplikacja objaśnia pobieranie, wysyłanie, możliwe ograniczenia i brakujące odpowiedzi na trasie. Przycisk „Szczegóły techniczne” otwiera pełny raport. Klient wykonuje oddzielne pingi ICMP do routera wybranego dla trasy i do rzeczywistego serwera testu.

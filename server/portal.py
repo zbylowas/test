@@ -1,6 +1,7 @@
 """Web panels, the public Windows download and client-scoped measurement reservations."""
 import hashlib
 import hmac
+import json
 import os
 import secrets
 from importlib import import_module
@@ -17,6 +18,7 @@ from starlette.concurrency import run_in_threadpool
 from server.access import Actor, Problem, admit, authenticate, source_address
 from server.database import engine, run
 from server.sessions import visibility
+from server.wire import VALIDATORS
 
 router = APIRouter(prefix="/api/v1/portal")
 Auth = Annotated[Actor, Depends(authenticate)]
@@ -40,6 +42,22 @@ def enroll(request: Request):
     return JSONResponse({"token": token}, status_code=201, headers={"Cache-Control": "no-store"})
 
 
+@router.get("/game-profiles")
+def game_profiles():
+    path = Path(os.getenv("VIPNET_GAME_PROFILES") or Path(__file__).with_name("game-profiles.json"))
+    with path.open("rb") as stream:
+        data = stream.read(32769)
+    if len(data) > 32768:
+        raise Problem(503, "catalog_size", "Katalog gier przekracza limit.")
+    try:
+        catalog = json.loads(data)
+    except ValueError:
+        raise Problem(503, "invalid_catalog", "Katalog gier ma niepoprawny format.")
+    if not VALIDATORS["game-profiles"].is_valid(catalog):
+        raise Problem(503, "invalid_catalog", "Sprawdź profile i adresy w katalogu gier.")
+    return catalog
+
+
 @router.get("/me")
 def identity(actor: Auth):
     return {"role": actor.role}
@@ -57,7 +75,7 @@ async def reserve(sid: UUID, actor: Auth, profile: Literal["legacy", "capacity"]
         if node.active is reservation:
             node.active = None
         raise
-    return {**offer, "observed_ip": actor.source}
+    return {**offer, "observed_ip": actor.source, "accepts_desktop_trace": True}
 
 
 def record_origin(sid, actor):
@@ -84,7 +102,7 @@ def sessions(actor: Auth, state: Literal["completed", "partial", "open", "failed
     if client_id is not None:
         clause += " AND owner_id=:client"
     with engine().connect() as conn:
-        rows = run(conn, f"""SELECT id AS session_id,state,started_at,client_version,owner_id AS client_id,
+        rows = run(conn, f"""SELECT id AS session_id,state,started_at,client_version,measurement,owner_id AS client_id,
             device_id,device_method,device_reason,host(coalesce(measured_ip,source_ip)) AS ip,
             host(source_ip) AS sync_ip, CASE WHEN measured_ip IS NULL THEN 'sync' ELSE 'reservation' END AS ip_source
             FROM core.session

@@ -1,0 +1,143 @@
+{
+  "version": 1,
+  "profiles": [
+    {
+      "name": "Fortnite",
+      "processes": [
+        "FortniteClient-Win64-Shipping.exe"
+      ],
+      "regions": [
+        {
+          "label": "Niemcy",
+          "host": "ping-de.ds.on.epicgames.com",
+          "method": "icmp",
+          "kind": "official_diagnostic",
+          "verified": "2026-11-25",
+          "source": "https://www.epicgames.com/help/c-34254770/c-38015632/a22355516"
+        },
+        {
+          "label": "Francja",
+          "host": "ping-fr.ds.on.epicgames.com",
+          "method": "icmp",
+          "kind": "official_diagnostic",
+          "verified": "2026-11-25",
+          "source": "https://www.epicgames.com/help/c-34254770/c-38015632/a22355516"
+        },
+        {
+          "label": "Wielka Brytania",
+          "host": "ping-gb.ds.on.epicgames.com",
+          "method": "icmp",
+          "kind": "official_diagnostic",
+          "verified": "2026-11-25",
+          "source": "https://www.epicgames.com/help/c-34254770/c-38015632/a22355516"
+        }
+      ]
+    },
+    {
+      "name": "Counter-Strike 2",
+      "processes": [
+        "cs2.exe"
+      ],
+      "regions": []
+    },
+    {
+      "name": "Valorant",
+      "processes": [
+        "VALORANT-Win64-Shipping.exe"
+      ],
+      "regions": []
+    },
+    {
+      "name": "League of Legends",
+      "processes": [
+        "League of Legends.exe"
+      ],
+      "regions": []
+    },
+    {
+      "name": "Call of Duty / Warzone",
+      "processes": [
+        "cod.exe"
+      ],
+      "regions": []
+    },
+    {
+      "name": "EA Sports FC",
+      "processes": [
+        "FC26.exe"
+      ],
+      "regions": []
+    },
+    {
+      "name": "Apex Legends",
+      "processes": [
+        "r5apex.exe"
+      ],
+      "regions": []
+    },
+    {
+      "name": "World of Warcraft",
+      "processes": [
+        "Wow.exe"
+      ],
+      "regions": []
+    },
+    {
+      "name": "Overwatch 2",
+      "processes": [
+        "Overwatch.exe"
+      ],
+      "regions": []
+    },
+    {
+      "name": "Rocket League",
+      "processes": [
+        "RocketLeague.exe"
+      ],
+      "regions": []
+    },
+    {
+      "name": "Roblox",
+      "processes": [
+        "RobloxPlayerBeta.exe"
+      ],
+      "regions": []
+    },
+    {
+      "name": "Minecraft",
+      "processes": [
+        "Minecraft.Windows.exe"
+      ],
+      "regions": []
+    },
+    {
+      "name": "GTA Online",
+      "processes": [
+        "GTA5.exe"
+      ],
+      "regions": []
+    },
+    {
+      "name": "Steam",
+      "processes": [
+        "steam.exe"
+      ],
+      "regions": []
+    },
+    {
+      "name": "PlayStation Network",
+      "processes": [],
+      "regions": []
+    },
+    {
+      "name": "Xbox Network",
+      "processes": [],
+      "regions": []
+    },
+    {
+      "name": "Własny profil",
+      "processes": [],
+      "regions": []
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-#include "reader_report.hpp"
+#include "summary_data.hpp"
 #include <algorithm>
 #include <array>
 #include <cstring>
@@ -10,12 +10,15 @@
 #include <set>
 #include <sstream>
 
-namespace {
-const Json& get(const Json& obj,const char* name) {
+namespace summary {
+const Json& field(const Json& obj,const char* name) {
     static const Json absent;
     auto it=obj.find(name);
     return it==obj.end() ? absent : *it;
 }
+}
+namespace {
+using summary::field;
 std::string number(double value) {
     std::ostringstream out;
     out << std::fixed << std::setprecision(1) << value;
@@ -24,12 +27,14 @@ std::string number(double value) {
     std::replace(text.begin(),text.end(),'.',',');
     return text;
 }
+}
+namespace summary {
 std::optional<double> speed(const Json& transfer,const char* dir) {
-    const auto& t=get(get(transfer,"transfers"),dir);
-    const auto& profile=get(transfer,"profile");
-    if (!profile.is_object() || get(t,"status")!="ok" || !get(t,"duration_ms").is_number() ||
-        t["duration_ms"]<=0 || !get(t,"client_bytes").is_number() || t["client_bytes"]<=0 ||
-        t["client_bytes"]!=get(t,"node_bytes") || !get(profile,"bytes").is_number()) return {};
+    const auto& t=field(field(transfer,"transfers"),dir);
+    const auto& profile=field(transfer,"profile");
+    if (!profile.is_object() || field(t,"status")!="ok" || !field(t,"duration_ms").is_number() ||
+        t["duration_ms"]<=0 || !field(t,"client_bytes").is_number() || t["client_bytes"]<=0 ||
+        t["client_bytes"]!=field(t,"node_bytes") || !field(profile,"bytes").is_number()) return {};
     const auto bytes=t["client_bytes"].get<double>(),limit=profile["bytes"].get<double>();
     if (profile.value("mode","")=="windowed" ? bytes>limit : bytes!=limit) return {};
     return bytes*0.008/t["duration_ms"].get<double>();
@@ -37,34 +42,39 @@ std::optional<double> speed(const Json& transfer,const char* dir) {
 std::optional<double> typical_delay(const Json& samples) {
     std::vector<double> times;
     for (const auto& sample:samples)
-        if (get(sample,"error").is_null() && get(sample,"ms").is_number()) times.push_back(sample.at("ms"));
+        if (field(sample,"error").is_null() && field(sample,"ms").is_number()) times.push_back(sample.at("ms"));
     if (times.size()<5 || times.size()*5<samples.size()*4) return {};
     std::sort(times.begin(),times.end());
     return (times[(times.size()-1)/2]+times[times.size()/2])/2;
 }
 const Json* used_adapter(const Json& inv,const Json& transfer) {
-    const auto& ip=get(get(transfer,"reservation_local_ip"),"value");
+    const auto& ip=field(field(transfer,"reservation_local_ip"),"value");
     if (!ip.is_string()) return nullptr;
     const Json* found=nullptr;
-    for (const auto& card:get(get(inv,"interfaces"),"value")) {
-        for (const auto& addr:get(get(card,"unicast"),"value")) {
-            if (get(addr,"ip")!=ip) continue;
+    for (const auto& card:field(field(inv,"interfaces"),"value")) {
+        for (const auto& addr:field(field(card,"unicast"),"value")) {
+            if (field(addr,"ip")!=ip) continue;
             if (found) return nullptr;
             found=&card; break;
         }
     }
     return found;
 }
+}
+namespace {
+using summary::speed;
+using summary::typical_delay;
+using summary::used_adapter;
 void connection(std::ostream& out,const Json& inv,const Json* card) {
     if (card) {
         int type=card->at("type");
         out << (type==71 ? "Komputer użył sieci Wi-Fi." : type==6 ? "Komputer użył karty Ethernet." :
                 type==131 ? "Komputer użył tunelu sieciowego." : "Komputer wyszedł do internetu przez kartę wskazaną w szczegółach.");
         if (type==71) {
-            for (const auto& radio:get(get(inv,"wifi"),"value")) {
+            for (const auto& radio:field(field(inv,"wifi"),"value")) {
                 auto a=radio.value("id",""), b=card->value("id","");
                 if (a.empty() || _stricmp(a.c_str(),b.c_str())) continue;
-                const auto& signal=get(get(get(radio,"connection"),"value"),"signal_pct");
+                const auto& signal=field(field(field(radio,"connection"),"value"),"signal_pct");
                 if (signal.is_number()) out << " Windows ocenił siłę sygnału na " << signal << "%.";
             }
             out << " Aby sprawdzić wpływ Wi-Fi, powtórz test na tym samym komputerze po kablu.";
@@ -75,8 +85,8 @@ void connection(std::ostream& out,const Json& inv,const Json* card) {
 
 void ping_line(std::ostream& out,const Json& host,const std::string& name) {
     out << name;
-    if (get(host,"target").is_string()) out << " (" << host.at("target").get<std::string>() << ")";
-    const auto& rows=get(host,"samples");
+    if (field(host,"target").is_string()) out << " (" << host.at("target").get<std::string>() << ")";
+    const auto& rows=field(host,"samples");
     if (!rows.is_array() || rows.empty()) {
         auto reason=host.is_object()?host.value("reason",Json(nullptr)):Json(nullptr);
         out << " — " << (reason=="cancelled" ? "test zatrzymano." :
@@ -169,18 +179,18 @@ void route_loss(std::ostream& out,const Json& rows,const Json& peer) {
 
 std::string reader_report(const Json& report) {
     const auto& t=report.at("throughput");
-    const auto& inv=get(report,"inventory");
+    const auto& inv=field(report,"inventory");
     const auto* card=used_adapter(inv,t);
     auto down=speed(t,"download"), up=speed(t,"upload");
     std::ostringstream out;
-    const bool interrupted=get(get(get(t,"host_pings"),"node"),"reason")=="cancelled";
+    const bool interrupted=field(field(field(t,"host_pings"),"node"),"reason")=="cancelled";
     out << (t.at("error").is_null() && !interrupted ? "Twój wynik" : "Twój wynik częściowy") << "\r\n\r\n";
     out << "Prędkość pobierania: " << (down ? number(*down)+" Mb/s" : "brak pełnego pomiaru") << "\r\n";
     out << "Prędkość wysyłania: " << (up ? number(*up)+" Mb/s" : "brak pełnego pomiaru") << "\r\n";
     if (t.at("error")=="cancelled" || interrupted) out << "Test zatrzymano. Wyniki ukończonych prób są zapisane poniżej.\r\n";
     out << "Pobieranie określa, jak szybko plik trafia na komputer. Wysyłanie — jak szybko możesz przesłać go innej osobie.\r\n\r\n";
     out << "Co mogło ograniczyć prędkość?\r\n";
-    const auto& cap=get(get(t,"profile"),"rate_bps");
+    const auto& cap=field(field(t,"profile"),"rate_bps");
     if (cap.is_number() && cap.get<double>()>0) {
         auto mbps=cap.get<double>()/1e6;
         out << "Serwer mierzył do " << number(mbps) << " Mb/s. ";
@@ -190,45 +200,45 @@ std::string reader_report(const Json& report) {
     }
     connection(out,inv,card);
     if (card) {
-        const auto& link=get(get(*card,"link"),"value");
-        if (get(link,"rx_bps").is_number() && get(link,"tx_bps").is_number()) {
+        const auto& link=field(field(*card,"link"),"value");
+        if (field(link,"rx_bps").is_number() && field(link,"tx_bps").is_number()) {
             out << "Windows podał dla łącza karty " << number(link.at("rx_bps").get<double>()/1e6) << " Mb/s odbioru i "
                 << number(link.at("tx_bps").get<double>()/1e6) << " Mb/s wysyłania. Część tej prędkości zajmuje obsługa połączenia.\r\n";
-            if (get(*card,"type")==6 && cap.is_number() &&
+            if (field(*card,"type")==6 && cap.is_number() &&
                 std::min(link.at("rx_bps").get<double>(),link.at("tx_bps").get<double>())<cap.get<double>())
                 out << "W co najmniej jednym kierunku karta uzgodniła po kablu mniejszą prędkość niż limit testu. Jeśli masz szybszy pakiet, sprawdź kabel i port routera.\r\n";
         }
     }
     out << "Jeden pomiar do jednego serwera nie rozstrzyga, czy ograniczeniem było łącze domowe, trasa w internecie czy sam serwer.\r\n";
-    const auto& phases=get(t,"phases");
-    if (const auto base=typical_delay(get(phases,"baseline"));base) {
+    const auto& phases=field(t,"phases");
+    if (const auto base=typical_delay(field(phases,"baseline"));base) {
         out << "Typowy czas odpowiedzi strony testowej przed obciążeniem wynosił " << number(*base) << " ms";
         for (auto name:{"download","upload"}) {
-            auto under=typical_delay(get(phases,name));
+            auto under=typical_delay(field(phases,name));
             if (under) out << (std::string_view(name)=="download"?", przy pobieraniu ":", przy wysyłaniu ") << number(*under) << " ms";
         }
         out << ".\r\n";
     }
-    const auto& count=get(get(inv,"unique_neighbor_macs"),"value");
+    const auto& count=field(field(inv,"unique_neighbor_macs"),"value");
     if (count.is_number()) out << "Urządzenia zauważone przez Windows na wszystkich kartach: " << count
         << ". Mogą to być także routery i telefony.\r\n";
     out << "\r\nPing — jak długo czekasz na odpowiedź?\r\n";
-    const auto& hosts=get(t,"host_pings");
+    const auto& hosts=field(t,"host_pings");
     if (hosts.is_object()) {
         ping_line(out,hosts.at("gateway"),"Router na drodze do internetu");
-        ping_line(out,hosts.at("node"),"Serwer pomiarowy "+(get(t,"node_id").is_string()?t.at("node_id").get<std::string>():""));
+        ping_line(out,hosts.at("node"),"Serwer pomiarowy "+(field(t,"node_id").is_string()?t.at("node_id").get<std::string>():""));
         out << "Im krótszy czas w milisekundach (ms), tym szybciej dociera odpowiedź.\r\n";
     } else out << "Ta wersja zapisu nie zawiera oddzielnych pingów do routera i serwera.\r\n";
     out << "\r\nGdzie zabrakło odpowiedzi po drodze?\r\n";
-    route_loss(out,get(report,"mtr_samples"),get(t,"peer"));
+    route_loss(out,field(report,"mtr_samples"),field(t,"peer"));
     out << "\r\nTwoje adresy\r\n";
-    if (get(report,"observed_ip").is_string())
+    if (field(report,"observed_ip").is_string())
         out << "Adres widoczny dla serwera: " << report.at("observed_ip").get<std::string>() << "\r\n";
     if (card) {
         for (bool v6:{false,true}) {
             out << (v6?"IPv6 na komputerze: ":"IPv4 na komputerze: ");
             std::string ips;
-            for (const auto& a:get(get(*card,"unicast"),"value")) {
+            for (const auto& a:field(field(*card,"unicast"),"value")) {
                 auto ip=a.at("ip").get<std::string>();
                 if ((ip.find(':')!=std::string::npos)==v6) {if (!ips.empty()) ips+=", ";ips+=ip;}
             }

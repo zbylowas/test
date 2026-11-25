@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "profiles"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "profiles": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "processes",
+          "regions"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 96
+          },
+          "processes": {
+            "type": "array",
+            "maxItems": 16,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          "regions": {
+            "type": "array",
+            "maxItems": 32,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "label",
+                "host",
+                "method",
+                "kind",
+                "verified",
+                "source"
+              ],
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 60
+                },
+                "host": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 253,
+                  "pattern": "^[A-Za-z0-9.:-]+$"
+                },
+                "method": {
+                  "const": "icmp"
+                },
+                "kind": {
+                  "const": "official_diagnostic"
+                },
+                "verified": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "source": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 512,
+                  "format": "uri",
+                  "pattern": "^https://"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

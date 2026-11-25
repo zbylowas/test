@@ -1,10 +1,10 @@
 {
   "name": "vipnet-diagnostics-portal",
-  "version": "0.5.5",
+  "version": "0.7.1",
   "private": true,
   "license": "MIT",
   "type": "module",
-  "scripts": {"build": "vue-tsc --noEmit && vite build && node scripts/check-copy.mjs"},
+  "scripts": {"build": "vue-tsc --noEmit && vite build && node scripts/check-copy.mjs && node scripts/check-transfer-trace.mjs"},
   "dependencies": {"vue": "3.5.22"},
   "devDependencies": {"typescript": "5.8.3", "vue-tsc": "3.0.8", "vite": "6.4.1", "@vitejs/plugin-vue": "5.2.4"}
 }

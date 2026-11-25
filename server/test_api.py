@@ -70,6 +70,22 @@ class SessionTests(unittest.TestCase):
                 rows = self.client.get("portal/sessions", params={"ip":ip,"device_id":device},headers=auth).json()["items"]
                 self.assertEqual([row["session_id"] for row in rows],[sid])
 
+    def test_transfer_series_round_trip(self):
+        doc = json.loads((ROOT / "fixtures/throughput.json").read_text())
+        doc["session_id"] = self.sid
+        trace = {"session_id": self.sid, "download": [[0, 0], [100, 1200]], "upload": []}
+        doc["desktop_trace"] = trace
+        self.opening["throughput"] = doc
+        for invalid in ([[0, 1]], [[0, 0], [0, 100]], [[0, 0], [10, 20], [20, 10]], [[0, 0], [20, 536870912]]):
+            trace["download"] = invalid
+            self.assertEqual(self.client.put(self.path, json=self.opening).status_code, 422)
+        trace["download"] = [[0, 0], [150, 1400]]
+        trace["session_id"] = str(uuid4())
+        self.assertEqual(self.client.put(self.path, json=self.opening).status_code, 422)
+        trace["session_id"] = self.sid
+        self.open()
+        self.assertEqual(self.client.get(self.path + "/throughput").json()["throughput"]["desktop_trace"], trace)
+
     def test_throughput_history_and_scope(self):
         doc = json.loads((ROOT / "fixtures/throughput.json").read_text())
         self.opening.update(throughput=doc, client_version="0.4.0")

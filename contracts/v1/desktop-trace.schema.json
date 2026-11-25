@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Windows transfer counters, measured from the first observation of each phase",
+  "type": "object", "additionalProperties": false,
+  "required": ["session_id", "download", "upload"],
+  "properties": {
+    "session_id": {"type":"string","format":"uuid"},
+    "download": {"$ref":"#/$defs/series"}, "upload": {"$ref":"#/$defs/series"}
+  },
+  "$defs": {
+    "series": {"type":"array","maxItems":1024,"items":{
+      "type":"array","prefixItems":[{"type":"integer","minimum":0,"maximum":86400000},{"type":"integer","minimum":0,"maximum":536870912}],
+      "minItems":2,"maxItems":2,"items":false,
+      "description":"Elapsed monotonic milliseconds, cumulative application bytes of the direction"
+    }}
+  }
+}

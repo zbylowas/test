@@ -36,3 +36,7 @@ Migracja v020 zachowuje w `core.session.measurement` parametry przyjęte w dokum
 ## Transfer v0.4.0
 
 `core.session.throughput` przechowuje JSONB z identyfikatorem sesji, profilem, adresatem, oknami pomiarowymi, licznikami obu stron i stanami kierunków. Serwer sprawdza identyfikator i zgodność potwierdzeń. Starsze sesje zawierają NULL. Dokument podlega retencji danych surowych. [Migracja v040](migrations/versions/v040.py)
+
+## Próbki transferu 0.6.0
+
+API przyjmuje opcjonalne liczniki czasu i bajtów pod kluczem `desktop_trace` w dotychczasowym JSONB `core.session.throughput`. Ten sam zakres uprawnień i retencja obejmują próbki. Klient wysyła je po ogłoszeniu `accepts_desktop_trace` przez serwer. Przy zapisie API sprawdza identyfikator sesji, początek obu serii, porządek czasów, monotoniczność bajtów i zgodność z licznikiem aplikacji. Starsze wiersze są czytane bez migracji.

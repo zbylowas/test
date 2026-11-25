@@ -1,6 +1,6 @@
 # VIP-NET Internet Diagnostics
 
-Aplikacja Windows mierzy pobieranie, wysyłanie i opóźnienie pod obciążeniem. Podczas pobierania i wysyłania pokazuje prędkościomierz ze wskazówką, bieżące Mb/s i wykres ostatnich sześciu sekund. Po teście prosty wynik pokazuje również ping do routera i serwera oraz miejsca z brakującymi odpowiedziami. W oknie przycisk **Szczegóły techniczne** rozwija dane dla operatora. Raport pokazuje kartę używaną do rezerwacji HTTPS, obserwowanych sąsiadów ARP/IPv6, sygnał Wi-Fi, parametry komputera, wynik każdego kierunku, statystyki opóźnienia i próbki MTR. Panel klienta i administratora umożliwia przeglądanie pomiarów po adresie IP i identyfikatorze instalacji Windows. [Pobieranie aplikacji](https://diagnostics.example.org/) · [Panel klienta](https://diagnostics.example.org/klient)
+Windows 0.7.1 pokazuje wyniki prędkości, opóźnienia, stan komputera, sieć i Wi-Fi w jasnych widokach. W MTR możesz wpisać adres lub nazwę DNS, ustawić rodzinę IP, wybrać ICMP lub TCP 443, obejrzeć poszczególne skoki i porównać trasy. Diagnostyka gier pobiera katalog z serwera. Zawiera regionalne cele Fortnite i obsługuje cele podane przez użytkownika. Historia zachowuje także przerwane pomiary. Budując własną dystrybucję, ustaw adres kontrolowanego serwera w pliku NetDiagnostics.ini lub w opcji CMake NETDIAG_DESKTOP_ORIGIN. [Konfiguracja Windows](deploy/windows-portable.md)
 
 ## Kod i licencja
 
@@ -13,7 +13,7 @@ Wymagane są MSVC z obsługą C++20, Windows SDK i CMake 3.21 lub nowszy. CMake 
 ~~~powershell
 cmake -S client/windows -B build -A x64 -DVIPNET_ACCEPTANCE=ON
 cmake --build build --config Release --parallel
-.\build\Release\vipnet-chart-check.exe
+.\build\Release\vipnet-summary-check.exe
 .\build\Release\vipnet-mtr.exe --version
 ~~~
 

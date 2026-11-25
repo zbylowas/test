@@ -22,6 +22,14 @@ def validator(name):
 
 
 class ContractTests(unittest.TestCase):
+    def test_local_transfer_trace(self):
+        schema = validator("desktop-trace.schema.json")
+        trace = {"session_id": "e0194701-6bc1-4045-933a-8798ba3f71db", "download": [[0, 0], [153, 8000]], "upload": []}
+        schema.validate(trace)
+        for bad in ([[0, -1]], [[153]], [[100, 200, 3]], [[0, None]]):
+            with self.assertRaises(ValidationError):
+                schema.validate(trace | {"download": bad})
+
     def test_host_pings_and_older_transfers(self):
         schema = validator("throughput.schema.json")
         doc = read(BASE.parents[1] / "fixtures/throughput.json")
@@ -104,6 +112,16 @@ class ContractTests(unittest.TestCase):
             with self.assertRaises(ValidationError):
                 schema.validate({"schema_version": 1, "samples": items})
 
+    def test_game_catalog_and_invalid_targets(self):
+        catalog = read(BASE.parents[1] / "server/game-profiles.json")
+        profile = catalog["profiles"][0]
+        region = profile["regions"][0]
+        schema = validator("game-profiles.schema.json")
+        schema.validate(catalog)
+        for bad in ({"host": "https://example.invalid/path"}, {"verified": "unknown"}, {"method": "udp"}):
+            with self.assertRaises(ValidationError):
+                schema.validate(catalog | {"profiles": [profile | {"regions": [region | bad]}]})
+
     def test_session_and_completion(self):
         session = {"schema_version": 1, "session_id": "9a8da3b5-7334-45d4-b3ac-7e7482389a16",
                    "started_at": "2026-11-24T12:00:00Z", "client_version": "stage0", "mode": "portable"}
@@ -119,7 +137,8 @@ class ContractTests(unittest.TestCase):
                     "attempts": 5, "max_ttl": 8, "interval_ms": 150, "timeout_ms": 400,
                     "protocol": "both", "phase_control": True}
         validator("session.schema.json").validate(session | {"measurement": settings})
-        for invalid in ({"targets": ["bad"]}, {"attempts": 21}, {"interval_ms": 0}):
+        validator("session.schema.json").validate(session | {"measurement": settings | {"attempts":300,"purpose":"gaming","target_name":"game.example","profile_name":"Test"}})
+        for invalid in ({"targets": ["bad"]}, {"attempts": 3601}, {"interval_ms": 0}):
             with self.assertRaises(ValidationError):
                 validator("session.schema.json").validate(session | {"measurement": settings | invalid})
         with self.assertRaises(ValidationError):

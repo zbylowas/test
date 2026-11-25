@@ -51,7 +51,7 @@ class Channel {
 public:
     std::string peer;
     Channel(const std::string& id, const std::wstring& origin)
-        : session_(handle(WinHttpOpen(L"VIP-NET transfer/0.5.5", WINHTTP_ACCESS_TYPE_NO_PROXY, nullptr, nullptr, 0))),
+        : session_(handle(WinHttpOpen(L"VIP-NET transfer/0.7.1", WINHTTP_ACCESS_TYPE_NO_PROXY, nullptr, nullptr, 0))),
           connection_(nullptr, WinHttpCloseHandle), base_(L"/measure/v1/runs/" + widen(id)) {
         URL_COMPONENTS url{};
         url.dwStructSize = sizeof(url);
@@ -69,8 +69,8 @@ public:
 
     Handle send(const wchar_t* verb, const wchar_t* suffix, const std::wstring& secret, DWORD size = 0,
                 const std::wstring& absolute = {}) {
-        const bool enrollment = absolute == L"/api/v1/portal/clients";
-        require(enrollment || (secret.size() >= 32 && secret.size() <= 256 &&
+        const bool public_request = absolute == L"/api/v1/portal/clients" || (absolute == L"/api/v1/portal/game-profiles" && std::wstring_view(verb)==L"GET");
+        require(public_request || (secret.size() >= 32 && secret.size() <= 256 &&
                 std::all_of(secret.begin(), secret.end(), [](wchar_t c){return c >= 33 && c <= 126;})),
                 "node_credential_required");
         auto path = absolute.empty() ? base_ + suffix : absolute;
@@ -81,7 +81,7 @@ public:
         DWORD disabled = WINHTTP_DISABLE_COOKIES | WINHTTP_DISABLE_AUTHENTICATION;
         check(WinHttpSetOption(req.get(), WINHTTP_OPTION_DISABLE_FEATURE, &disabled, sizeof(disabled)));
         std::wstring headers = L"Accept-Encoding: identity\r\n";
-        if (!enrollment) headers += L"Authorization: Bearer " + secret + L"\r\n";
+        if (!public_request) headers += L"Authorization: Bearer " + secret + L"\r\n";
         if (size) headers += L"Content-Type: application/octet-stream\r\n";
         check(WinHttpSendRequest(req.get(), headers.c_str(), DWORD(-1), nullptr, 0, size, 0));
         return req;
@@ -106,13 +106,13 @@ public:
         require(address == peer, "node_address_changed");
     }
 
-    static Json json(HINTERNET req) {
+    static Json json(HINTERNET req, size_t limit=8192) {
         std::array<char, 2048> bytes{};
         std::string body;
         DWORD n{};
         do {
             check(WinHttpReadData(req, bytes.data(), static_cast<DWORD>(bytes.size()), &n));
-            require(body.size()+n <= 8192, "node_reply_too_large");
+            require(body.size()+n <= limit, "node_reply_too_large");
             body.append(bytes.data(), n);
         } while (n);
         auto parsed = Json::parse(body, nullptr, false);
@@ -302,6 +302,16 @@ void windowed_transfer(const std::string& id, const std::wstring& origin, Channe
 }
 } // namespace
 
+Json fetch_game_profiles(const std::wstring& origin) {
+    Channel channel("",origin);
+    auto request=channel.send(L"GET",L"",{},0,L"/api/v1/portal/game-profiles");
+    channel.receive(request.get(),200);
+    auto catalog=Channel::json(request.get(),32768);
+    if (catalog.value("version",0)!=1 || !catalog.at("profiles").is_array() || catalog.at("profiles").size()>64)
+        throw std::runtime_error("invalid_game_catalog");
+    return catalog;
+}
+
 std::wstring register_desktop_client(const std::wstring& origin) {
     Channel channel("", origin);
     auto request = channel.send(L"POST", L"", {}, 0, L"/api/v1/portal/clients");
@@ -311,6 +321,27 @@ std::wstring register_desktop_client(const std::wstring& origin) {
         token.find_first_not_of("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_") == token.npos,
         "invalid_client_credential");
     return widen(token);
+}
+
+void LiveTraffic::clear() {
+    std::lock_guard lock(mutex_);
+    received=0; sent=0; profile_bps=0;
+    traces_={Json::array(),Json::array()};
+}
+
+void LiveTraffic::observe(size_t direction,unsigned long long bytes) {
+    std::lock_guard lock(mutex_);
+    auto& rows=traces_.at(direction);
+    const auto now=std::chrono::steady_clock::now();
+    if (rows.empty()) starts_[direction]=now;
+    const auto elapsed=std::chrono::duration_cast<std::chrono::milliseconds>(now-starts_[direction]).count();
+    if (rows.size()<1024 && (rows.empty() || elapsed>rows.back()[0].get<long long>()))
+        rows.push_back({elapsed,bytes});
+}
+
+Json LiveTraffic::trace(size_t direction) const {
+    std::lock_guard lock(mutex_);
+    return traces_.at(direction);
 }
 
 Json measure_throughput(Queue& queue, const std::string& id, const std::atomic_bool& cancel, const PhaseMtr& mtr,
@@ -330,12 +361,14 @@ Json measure_throughput(Queue& queue, const std::string& id, const std::atomic_b
         Channel control(id, origin), bulk(id, origin);
         const bool portal = environment(L"VIPNET_PORTAL_RESERVATION") == L"1";
         auto reserve = control.send(L"POST", L"", environment(portal ? L"VIPNET_TOKEN" : L"VIPNET_NODE_TOKEN"), 0,
-                                    portal ? L"/api/v1/portal/runs/" + widen(id) + L"?profile=capacity" : L"");
+                                    portal ? L"/api/v1/portal/runs/" + widen(id) + (live && !live->capacity ? L"?profile=legacy" : L"?profile=capacity") : L"");
         control.receive(reserve.get(), 201, &doc["reservation_local_ip"]);
         auto offer = Channel::json(reserve.get());
         std::string canonical = id;
         std::transform(canonical.begin(), canonical.end(), canonical.begin(), [](char c){return char(std::tolower(c));});
         require(offer.at("session_id") == canonical, "node_session_mismatch");
+        const bool share_trace=portal && live && offer.value("accepts_desktop_trace",false);
+        if (share_trace) doc["desktop_trace"]={{"session_id",id},{"download",Json::array()},{"upload",Json::array()}};
         auto ticket = widen(offer.at("ticket").get<std::string>());
         auto profile = offer.at("profile");
         if (observed_ip && offer.contains("observed_ip")) *observed_ip=offer.at("observed_ip").get<std::string>();
@@ -362,6 +395,7 @@ Json measure_throughput(Queue& queue, const std::string& id, const std::atomic_b
             Json result = empty_transfer();
             std::jthread load;
             if (loaded) {
+                if (live) live->observe(phase=="upload",0);
                 load = std::jthread([&]{
                     if (windowed) windowed_transfer(id, origin, bulk, ticket, phase, profile, deadline, cancel, progress, result);
                     else transfer(bulk, ticket, phase=="upload", static_cast<DWORD>(size),
@@ -379,6 +413,7 @@ Json measure_throughput(Queue& queue, const std::string& id, const std::atomic_b
                 struct Stop {std::atomic_bool& flag; ~Stop(){flag=false;}} stop{window};
                 while (in_window()) {
                     if (samples.size() >= 100) {std::this_thread::sleep_for(50ms); continue;}
+                    if (loaded && live) live->observe(phase=="upload",progress.bytes.load());
                     auto start = Clock::now();
                     Json sample = {{"at",utc_now()},{"ms",nullptr},{"error",nullptr}};
                     try {
@@ -399,7 +434,9 @@ Json measure_throughput(Queue& queue, const std::string& id, const std::atomic_b
             }
             if (loaded) {
                 load.join();
+                if (live) live->observe(phase=="upload",progress.bytes.load());
                 doc["transfers"][phase] = result;
+                if (share_trace) doc["desktop_trace"][phase]=live->trace(phase=="upload");
             }
             save();
         }

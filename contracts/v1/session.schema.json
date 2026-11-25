@@ -72,12 +72,12 @@
         "attempts": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 20
+          "maximum": 3600
         },
         "max_ttl": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 32
+          "maximum": 64
         },
         "timeout_ms": {
           "type": "integer",
@@ -98,6 +98,38 @@
         },
         "phase_control": {
           "type": "boolean"
+        },
+        "purpose": {
+          "enum": [
+            "mtr",
+            "gaming",
+            "monitor"
+          ]
+        },
+        "target_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 253
+        },
+        "profile_name": {
+          "type": "string",
+          "maxLength": 96
+        },
+        "technique": {
+          "enum": [
+            "echo",
+            "trace"
+          ]
+        },
+        "region": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "target_kind": {
+          "enum": [
+            "official_diagnostic",
+            "user_supplied"
+          ]
         }
       }
     },

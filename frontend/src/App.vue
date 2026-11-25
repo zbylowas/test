@@ -3,14 +3,16 @@
 import {ref, computed, onMounted} from 'vue'
 import InventoryReport, {type Inventory, type Reading} from './InventoryReport.vue'
 import HostPings, {type HostMeasurements} from './HostPings.vue'
+import TransferTrace, {type CounterTrace} from './TransferTrace.vue'
 import RouteFindings, {type Finding} from './RouteFindings.vue'
+const exporting=ref(false), exportError=ref('')
 const showSources=import.meta.env.VITE_SOURCE_VISIBILITY!=='private'
 
-type Session = {session_id:string; started_at:string; state:string; client_version:string;ip:string;sync_ip:string;ip_source:'reservation'|'sync';client_id:string;device_id:string|null;device_method:string|null;device_reason:string|null}
+type Session = {measurement?:{purpose?:string;technique?:string;region?:string;target_kind?:string;target_name?:string;profile_name?:string;targets:string[]}|null;session_id:string; started_at:string; state:string; client_version:string;ip:string;sync_ip:string;ip_source:'reservation'|'sync';client_id:string;device_id:string|null;device_method:string|null;device_reason:string|null}
 type Direction = {goodput_mbps:number|null; bufferbloat:string; median_increase_ms:number|null}
 type Phase = {median_ms:number|null;p95_ms:number|null;sent:number;received:number}
 type Payload={client_bytes:number;node_bytes:number|null;duration_ms:number|null;node_duration_ms:number|null;status:string;reason:string|null}
-type Transfer = {interpretation:{rules_version:string;directions:Record<string,Direction>; phases:Record<string,Phase>}; throughput:{host_pings?:HostMeasurements;transfers:Record<string,Payload>;peer:string|null;started_at:string;ended_at:string|null;reservation_local_ip?:Reading<string>;error:string|null;windows_version:string;node_id:string|null;profile:{rate_bps:number;streams?:number;window_ms?:number}|null}}
+type Transfer = {interpretation:{rules_version:string;directions:Record<string,Direction>; phases:Record<string,Phase>}; throughput:{desktop_trace?:CounterTrace;host_pings?:HostMeasurements;transfers:Record<string,Payload>;peer:string|null;started_at:string;ended_at:string|null;reservation_local_ip?:Reading<string>;error:string|null;windows_version:string;node_id:string|null;profile:{rate_bps:number;streams?:number;window_ms?:number}|null}}
 type Hop = {avg:number|null;best:number|null;worst:number|null;last:number|null;stdev:number|null;p99:number|null;mean_abs_delta_ms:number|null;unavailable:number;snt:number;rcv:number;responders:string[];loss_pct:number|null;p50:number|null;p95:number|null}
 type Analysis = {rules_version:string;result:{sample_count:number; series:{target:string;protocol:string;phase:string;family:number;findings:Finding[];stats:Record<string,Hop>}[];findings:Finding[]}}
 const admin=location.pathname==='/admin', landing=location.pathname==='/'
@@ -104,10 +106,30 @@ async function loadRaw(start:number){
  }catch(e){if(current===serial)rawError.value=(e as Error).message}
  finally{if(current===serial)rawBusy.value=false}
 }
-function exportJson(){
+async function exportReport(format: 'json'|'csv'|'txt'){
  if(!selected.value)return
- const blob=new Blob([JSON.stringify({session:selected.value,throughput:transfer.value,analysis:analysis.value,inventory:inventory.value},null,2)],{type:'application/json'})
- const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='vipnet-'+selected.value.session_id+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)
+ const row=selected.value, current=serial
+ if(exporting.value)return
+ exporting.value=true; exportError.value=''
+ try{
+  const samples: Sample[]=[]
+  let more=true
+  while(more){
+   const data=await api('sessions/'+encodeURIComponent(row.session_id)+'/mtr?limit=128&offset='+samples.length)
+   if(serial!==current)return
+   if(data.session_id!==row.session_id || (data.has_more && !data.items.length))throw new Error('Niekompletna odpowiedź serwera.')
+   samples.push(...data.items);more=data.has_more
+  }
+  const keys=['timestamp','target','family','protocol','phase','attempt','ttl','responder','rtt_ms','status','native_code'] as const
+  const sep=format==='csv'?';':'\t'
+  const escape=(v:unknown)=>format==='csv'?'"'+String(v??'').replace(/"/g,'""')+'"':String(v??'')
+  const tabular=()=>[keys.join(sep),...samples.map(s=>keys.map(k=>escape((s as Record<string,unknown>)[k])).join(sep))].join('\r\n')
+  const body=format==='json'?JSON.stringify({session:row,throughput:transfer.value,analysis:analysis.value,inventory:inventory.value,mtr_samples:samples},null,2):'\ufeff'+tabular()
+  const blob=new Blob([body],{type:format==='json'?'application/json':format==='csv'?'text/csv;charset=utf-8':'text/plain;charset=utf-8'})
+  const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='vipnet-'+row.session_id+'.'+format;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)
+ }catch(e){if(serial===current)exportError.value=(e as Error).message}
+ finally{exporting.value=false}
+
 }
 function printReport(){window.print()}
 </script>
@@ -116,8 +138,8 @@ function printReport(){window.print()}
 <header><div class="bar"><a class="brand" href="/"><span class="mark" aria-hidden="true">▥</span> VIP-NET</a><nav aria-label="Panele"><a href="/klient" :aria-current="!landing&&!admin?'page':undefined">Panel klienta</a><a href="/admin" :aria-current="admin?'page':undefined">Administracja</a></nav></div></header>
 <main>
 <template v-if="landing">
-<section class="hero"><div><p class="eyebrow">Diagnostyka łącza</p><h1>Sprawdź swoje<br>połączenie.</h1><p class="lead">Zmierz pobieranie, wysyłanie i opóźnienie pod obciążeniem. W aplikacji zobaczysz prędkościomierz ze wskazówką, a po teście raport o swoim połączeniu.</p><a class="button" href="/pobierz/VIP-NET-Diagnostyka.exe" download>↓ &nbsp; Pobierz aplikację</a><small>Windows 10 i 11 · x64 · wersja testowa 0.5.5</small><small>{{publisher}} <a href="/pobierz/VIP-NET-Diagnostyka.exe.sha256">Suma kontrolna SHA-256</a><template v-if="showSources"> · <a href="https://github.com/zbylowas/test">Kod źródłowy (MIT)</a> · <a href="https://github.com/zbylowas/test#code-signing-policy">Zasady podpisywania aplikacji</a></template></small></div>
-<aside class="guide"><h2>Jak wykonać pomiar</h2><ol><li>Pobierz i otwórz <strong>VIP-NET-Diagnostyka.exe</strong>.</li><li>Kliknij <strong>Wykonaj test</strong> i poczekaj na raport.</li><li>Aby wrócić do wyników w przeglądarce, wybierz <strong>Kopiuj kod do panelu</strong> w aplikacji.</li></ol><a href="/klient">Otwórz historię pomiarów →</a></aside></section>
+<section class="hero"><div><p class="eyebrow">Diagnostyka łącza</p><h1>Sprawdź swoje<br>połączenie.</h1><p class="lead">Zmierz pobieranie, wysyłanie i opóźnienie pod obciążeniem. W aplikacji zobaczysz wykresy obu kierunków, a po teście czas odpowiedzi i podsumowanie stanu połączenia.</p><a class="button" href="/pobierz/VIP-NET-Diagnostyka.exe" download>↓ &nbsp; Pobierz aplikację</a><small>Windows 10 i 11 · x64 · wersja testowa 0.7.1</small><small>{{publisher}} <a href="/pobierz/VIP-NET-Diagnostyka.exe.sha256">Suma kontrolna SHA-256</a><template v-if="showSources"> · <a href="https://github.com/zbylowas/test">Kod źródłowy (MIT)</a> · <a href="https://github.com/zbylowas/test#code-signing-policy">Zasady podpisywania aplikacji</a></template></small></div>
+<aside class="guide"><h2>Jak wykonać pomiar</h2><ol><li>Pobierz i otwórz <strong>VIP-NET-Diagnostyka.exe</strong>.</li><li>Kliknij <strong>Rozpocznij test</strong> i poczekaj na raport.</li><li>Aby wrócić do wyników w przeglądarce, wybierz <strong>Kopiuj kod do panelu</strong> w aplikacji.</li></ol><a href="/klient">Otwórz historię pomiarów →</a></aside></section>
 </template>
 <template v-else-if="!logged">
 <section class="login"><p class="eyebrow">VIP-NET / Diagnostyka</p><h1>{{title}}</h1><p>{{admin?'Zaloguj się kodem operatora, aby przejrzeć sesje klientów swojej organizacji.':'W aplikacji Windows wybierz „Kopiuj kod do panelu”, a następnie wklej go poniżej.'}}</p>
@@ -131,10 +153,11 @@ function printReport(){window.print()}
 <button class="quiet" :disabled="busy" @click="list(0)">Szukaj</button><button v-if="searchIp||searchDevice||filter" class="quiet" @click="clearFilters">Wyczyść</button>
 <button class="quiet" :disabled="busy" @click="list(offset)">Odśwież</button></div>
 <p v-if="error" role="alert">{{error}}</p><p v-if="!sessions.length && !busy && !error" class="empty">Brak sesji dla wybranego filtra.</p>
-<div v-if="sessions.length" class="scroll"><table><thead><tr><th>Rozpoczęcie</th><th>Stan</th><th>Adres IP</th><th>Identyfikator komputera</th><th>Windows EXE</th><th>Raport</th></tr></thead><tbody><tr v-for="row in sessions" :key="row.session_id"><td>{{date(row.started_at)}}</td><td>{{names[row.state]}}</td><td>{{row.ip}}<small>{{row.ip_source==='reservation'?'przy rezerwacji':'przy synchronizacji'}}</small></td><td><button v-if="row.device_id" class="link" @click="deviceHistory(row)">{{row.device_id}}</button><span v-else>{{row.device_reason||'Brak w zapisie'}}</span></td><td>{{row.client_version}}</td><td><button class="link" :disabled="busy" @click="open(row)">Otwórz</button></td></tr></tbody></table></div>
+<div v-if="sessions.length" class="scroll"><table><thead><tr><th>Rozpoczęcie</th><th>Stan</th><th>Adres IP</th><th>Identyfikator komputera</th><th>Windows EXE</th><th>Raport</th></tr></thead><tbody><tr v-for="row in sessions" :key="row.session_id"><td>{{date(row.started_at)}}</td><td>{{names[row.state]}}</td><td>{{row.ip}}<small>{{row.ip_source==='reservation'?'przy rezerwacji':'przy synchronizacji'}}</small></td><td><button v-if="row.device_id" class="link" @click="deviceHistory(row)">{{row.device_id}}</button><span v-else>{{row.device_reason||'Brak w zapisie'}}</span></td><td>{{row.client_version}}<small v-if="row.measurement?.purpose">{{row.measurement.profile_name || row.measurement.purpose}} · {{row.measurement.target_name}}</small></td><td><button class="link" :disabled="busy" @click="open(row)">Otwórz</button></td></tr></tbody></table></div>
 <div class="pager" v-if="offset||more"><button class="quiet" :disabled="!offset||busy" @click="list(offset-20)">Poprzednie</button><button class="quiet" :disabled="!more||busy" @click="list(offset+20)">Następne</button></div>
 <article v-if="selected" class="report"><p class="eyebrow">Raport z pomiaru</p><h2>{{date(selected.started_at)}}</h2><small>Sesja {{selected.session_id}}</small>
 <p>IP {{selected.ip_source==='reservation'?'przy rezerwacji':'przy synchronizacji'}} · {{selected.ip}}<span v-if="selected.ip!==selected.sync_ip"> · IP synchronizacji {{selected.sync_ip}}</span><br>Identyfikator komputera · {{selected.device_id||'Brak w zapisie'}} <span v-if="selected.device_reason">({{selected.device_reason}})</span></p>
+<p v-if="selected.measurement?.purpose">Rodzaj pomiaru · {{selected.measurement.profile_name || selected.measurement.purpose}}<br>Wybrany cel · {{selected.measurement.target_name}} <span v-if="selected.measurement.region">({{selected.measurement.region}})</span><span v-if="selected.measurement.target_kind"> · {{selected.measurement.target_kind==='official_diagnostic'?'regionalny host diagnostyczny':'adres użytkownika'}}</span><br>Adres użyty podczas testu · {{selected.measurement.targets.join(', ')}}</p>
 <p v-if="loadingReport" role="status">Pobieranie raportu…</p><p v-else-if="reportError" role="alert">{{reportError}}</p>
 <template v-else>
 <div v-if="transfer"><p v-if="transfer.throughput.error" role="status">Pomiar częściowy · {{transfer.throughput.error}}</p><div class="metrics"><section v-for="dir in directions" :key="dir"><h3>{{dir==='download'?'Prędkość pobierania':'Prędkość wysyłania'}}</h3><strong>{{number(transfer.interpretation.directions[dir]?.goodput_mbps)}} <em>Mb/s</em></strong><p>{{diagnosis[transfer.interpretation.directions[dir]?.bufferbloat]}}</p></section></div>
@@ -144,6 +167,7 @@ function printReport(){window.print()}
 <p v-if="transfer.throughput.profile">Limit węzła {{number(transfer.throughput.profile.rate_bps/1000000)}} Mb/s<span v-if="transfer.throughput.profile.streams"> · strumienie {{transfer.throughput.profile.streams}} · okno {{number((transfer.throughput.profile.window_ms||0)/1000)}} s</span></p><details><summary>Jak wyliczono prędkość</summary>
 <p>Cel {{transfer.throughput.node_id}} ({{transfer.throughput.peer||'brak adresu'}}). Pomiar transferu od {{transfer.throughput.started_at}} do {{transfer.throughput.ended_at||'brak końca'}}. Czas w UTC. Wynik w Mb/s oblicza się z bajtów potwierdzonych przez obie strony i czasu transferu na komputerze.</p>
 <div class="scroll"><table><thead><tr><th>Kierunek</th><th>Bajty komputera</th><th>Bajty serwera</th><th>Czas komputera (ms)</th><th>Czas serwera (ms)</th></tr></thead><tbody><tr v-for="dir in directions" :key="dir"><td>{{names[dir]}}</td><td>{{number(transfer.throughput.transfers[dir]?.client_bytes)}}</td><td>{{number(transfer.throughput.transfers[dir]?.node_bytes)}}</td><td>{{number(transfer.throughput.transfers[dir]?.duration_ms)}}</td><td>{{number(transfer.throughput.transfers[dir]?.node_duration_ms)}}</td></tr></tbody></table></div></details>
+<TransferTrace v-if="selected" :trace="transfer.throughput.desktop_trace" :session="selected.session_id"/>
 <HostPings :hosts="transfer.throughput.host_pings" :node="transfer.throughput.node_id"/>
 <h3>Opóźnienie HTTPS</h3><p>To czas odpowiedzi usługi WWW. Mediana to środkowy czas po uporządkowaniu próbek. P95 pokazuje, ile trwało do 95% odpowiedzi. Porównaj wynik sprzed testu z wynikiem podczas transferu, aby zobaczyć, czy duży ruch opóźnia inne połączenia.</p><div class="scroll"><table><thead><tr><th>Faza</th><th>Mediana</th><th>P95</th><th>Odpowiedzi</th></tr></thead><tbody><tr v-for="k in phaseOrder" :key="k"><td>{{names[k]}}</td><td>{{number(transfer.interpretation.phases[k]?.median_ms)}} ms</td><td>{{number(transfer.interpretation.phases[k]?.p95_ms)}} ms</td><td>{{transfer.interpretation.phases[k]?.received}} / {{transfer.interpretation.phases[k]?.sent}}</td></tr></tbody></table></div></div>
 <p v-else>Brak danych o transferze dla tej sesji.</p>
@@ -162,7 +186,7 @@ function printReport(){window.print()}
 <InventoryReport v-if="inventory" :inventory="inventory" :endpoint="transfer?.throughput.reservation_local_ip" />
 <p v-else>Brak inwentaryzacji komputera i sieci w tej sesji.</p>
 <details v-if="admin && inventory"><summary>Surowa inwentaryzacja Windows</summary><pre>{{JSON.stringify(inventory,null,2)}}</pre></details>
-<div class="actions"><button class="quiet" @click="printReport">Drukuj / zapisz PDF</button><button class="quiet" @click="exportJson">Pobierz raport JSON</button></div>
+<div class="actions"><button class="quiet" @click="printReport">Drukuj / zapisz PDF</button><button class="quiet" :disabled="exporting" @click="exportReport('json')">Pobierz raport JSON</button><button class="quiet" :disabled="exporting" @click="exportReport('csv')">MTR CSV</button><button class="quiet" :disabled="exporting" @click="exportReport('txt')">MTR TXT</button><span v-if="exportError" role="alert">{{exportError}}</span></div>
 </template></article>
-</template></main><footer><span>VIP-NET Internet Diagnostics</span><span>Wersja 0.5.5</span></footer>
+</template></main><footer><span>VIP-NET Internet Diagnostics</span><span>Wersja 0.7.1</span></footer>
 </template>

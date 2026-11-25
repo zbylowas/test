@@ -101,14 +101,15 @@ bool await_phase(char expected) {
 void measure(Queue& queue, std::atomic_bool& incomplete, std::atomic_bool& observed, const Target& target,
              const std::string& id, unsigned attempts, unsigned hops, unsigned timeout,
              const Options& options, const std::string& phase, const std::atomic_bool* window = nullptr,
-             const std::atomic_bool& stop_flag = cancelled, bool console = true) {
+             const std::atomic_bool& stop_flag = cancelled, bool console = true, unsigned first_ttl = 1,
+             const std::function<void(const Json&)>& observer = {}) {
     auto active = [&]{return !stop_flag && (!window || window->load());};
     std::optional<Probe> probe;
     if (options.protocol != "tcp") probe.emplace(target);
     for (unsigned attempt = 1; attempt <= attempts && active(); ++attempt) {
         for (std::string_view protocol : {"icmp", "tcp"}) {
             if (options.protocol != "both" && protocol != options.protocol) continue;
-            for (unsigned ttl = 1; ttl <= hops && active(); ++ttl) {
+            for (unsigned ttl = first_ttl; ttl <= hops && active(); ++ttl) {
                 auto start = Clock::now();
                 auto timestamp = utc_now();
                 auto reply = protocol == "tcp" ? tcp_probe(target, ttl, timeout) : probe->send(ttl, timeout);
@@ -129,6 +130,7 @@ void measure(Queue& queue, std::atomic_bool& incomplete, std::atomic_bool& obser
                     sample << "}";
                     auto record = sample.str();
                     queue.append(id, record);
+                    if (observer) observer(Json::parse(record));
                     if (console) {
                         std::cout << record << std::endl;
                         if (!std::cout) throw std::runtime_error("sample output failed");
@@ -170,6 +172,52 @@ static void sync_configured(Queue& queue) {
     } catch (const std::exception& e) { std::cerr << "Pending SQLite queue: " << e.what() << '\n'; }
 }
 
+Json run_route(const RouteRequest& request,const std::atomic_bool& cancel,
+               const std::function<void(const Json&)>& observer) {
+    const auto& host=request.host;
+    if (host.empty() || host.size()>253 || host.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-:")!=host.npos ||
+        request.attempts<1 || request.attempts>3600 || !request.ttl || request.ttl>64 ||
+        request.timeout<100 || request.timeout>2000 || request.interval<100 || request.interval>5000 ||
+        (request.protocol!="icmp" && request.protocol!="tcp"))
+        throw std::invalid_argument("Podaj pojedynczy adres IPv4, IPv6 lub nazwę DNS.");
+    WSADATA winsock{};
+    if (WSAStartup(MAKEWORD(2,2),&winsock)) throw std::runtime_error("winsock_unavailable");
+    struct Cleanup { ~Cleanup(){WSACleanup();} } cleanup;
+    ADDRINFOA hints{};hints.ai_family=request.family==4?AF_INET:request.family==6?AF_INET6:AF_UNSPEC;hints.ai_socktype=SOCK_STREAM;
+    ADDRINFOA* result{};
+    if (getaddrinfo(host.c_str(),nullptr,&hints,&result)) throw std::runtime_error("Windows nie rozpoznał adresu celu.");
+    std::unique_ptr<ADDRINFOA,decltype(&freeaddrinfo)> list(result,&freeaddrinfo);
+    std::vector<Target> targets;
+    for(auto row=result;row;row=row->ai_next){
+        char addr[NI_MAXHOST]{};
+        if (getnameinfo(row->ai_addr,static_cast<int>(row->ai_addrlen),addr,sizeof addr,nullptr,0,NI_NUMERICHOST)) continue;
+        try {targets.push_back(parse_target(addr));break;} catch(const std::invalid_argument&) {}
+    }
+    if (targets.empty()) throw std::invalid_argument("Cel nie ma obsługiwanego adresu unicast.");
+    Queue queue;
+    const auto id=session_id(), started=utc_now();
+    Options options{request.protocol,request.interval,false};
+    auto parameters=Json::parse(measurement_parameters(options,targets,request.attempts,request.ttl,request.timeout));
+    parameters["purpose"]=request.purpose;parameters["target_name"]=host;parameters["profile_name"]=request.profile;
+    parameters["technique"]=request.direct?"echo":"trace";parameters["region"]=request.region;parameters["target_kind"]=request.target_kind;
+    auto device=Json::parse(queue.begin(id,parameters.dump()));
+    std::atomic_bool incomplete{},observed{};
+    auto state=std::string("completed");
+    std::string error;
+    try {
+        measure(queue,incomplete,observed,targets.front(),id,request.attempts,request.ttl,request.timeout,
+                options,"baseline",nullptr,cancel,false,request.direct?request.ttl:1,observer);
+    } catch(const std::exception& e) {error=e.what();incomplete=true;}
+    if(cancel) state="cancelled";else if(incomplete || !observed) state="partial";
+    Json samples=Json::array();
+    for(const auto& item:queue.recorded_samples(id)) samples.push_back(Json::parse(item));
+    queue.seal(id,state);
+    bool synced=false;
+    try {synced=queue.sync(false)==0;} catch(const std::exception&){}
+    return {{"session_id",id},{"version","0.7.1"},{"started_at",started},{"ended_at",utc_now()},{"device",device},
+            {"state",state},{"error",error},{"measurement",parameters},{"mtr_samples",std::move(samples)},{"synchronized",synced}};
+}
+
 Json run_desktop_test(const std::atomic_bool& cancel, const std::function<void(const std::string&)>& progress, LiveTraffic& live) {
     WSADATA winsock{};
     if (WSAStartup(MAKEWORD(2, 2), &winsock)) throw std::runtime_error("winsock_unavailable");
@@ -201,7 +249,8 @@ Json run_desktop_test(const std::atomic_bool& cancel, const std::function<void(c
         bool delivered = false;
         try { delivered = queue.sync(false) == 0; } catch (const std::exception&) { }
         return {{"device",std::move(device)},{"observed_ip",observed_ip.empty()?Json(nullptr):Json(observed_ip)},
-                {"mtr_samples",std::move(samples)},{"version","0.5.5"},{"throughput",std::move(report)},{"inventory",std::move(inventory)},{"synchronized",delivered}};
+                {"desktop_trace",{{"session_id",id},{"download",live.trace(0)},{"upload",live.trace(1)}}},
+                {"mtr_samples",std::move(samples)},{"version","0.7.1"},{"throughput",std::move(report)},{"inventory",std::move(inventory)},{"synchronized",delivered}};
     } catch (...) {
         if (!sealed) queue.seal(id, "partial");
         throw;
@@ -212,7 +261,7 @@ int diagnostics_main(int argc, char** argv) {
     if (argc == 2 || argc == 3) {
         try {
             std::string_view cmd(argv[1]);
-            if (cmd == "--version" && argc == 2) { std::cout << "0.5.5\n"; return 0; }
+            if (cmd == "--version" && argc == 2) { std::cout << "0.7.1\n"; return 0; }
             if (cmd == "--status" && argc == 2) { Queue().status(); return 0; }
             if (cmd == "--sync" && argc == 3 && std::string_view(argv[2]) == "--retry-blocked")
                 return Queue().sync(false, true);

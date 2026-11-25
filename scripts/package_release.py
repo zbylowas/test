@@ -42,8 +42,8 @@ def public_notice(member):
 
 def package(exe, output, json_license, zlib_license, gui=None, web=None, require_signature=False):
     version = subprocess.check_output([exe, "--version"]).decode().strip()
-    if version != "0.5.5":
-        raise ValueError("the tested v0.5.5 executable is required")
+    if version != "0.7.1":
+        raise ValueError("the tested v0.7.1 executable is required")
     gui = gui or exe.with_name("VIP-NET-Diagnostyka.exe")
     web = web or ROOT / "frontend/dist"
     if not (web / "index.html").is_file() or not any((web / "assets").glob("*.js")):
@@ -139,6 +139,7 @@ def package(exe, output, json_license, zlib_license, gui=None, web=None, require
             "frontend/dist/VIP-NET-Diagnostyka.exe",
             "frontend/dist/windows-release.json",
             "server/portal.py",
+            "server/game-profiles.json",
             "measurement-node/transfer.py",
             "contracts/v1/throughput.schema.json",
             "contracts/v1/inventory.schema.json",

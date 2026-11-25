@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "VIP-NET Internet Diagnostics",
-    "version": "0.5.5"
+    "version": "0.7.1"
   },
   "servers": [
     {
@@ -921,6 +921,16 @@
                               "reservation",
                               "sync"
                             ]
+                          },
+                          "measurement": {
+                            "anyOf": [
+                              {
+                                "type": "null"
+                              },
+                              {
+                                "$ref": "session.schema.json#/properties/measurement"
+                              }
+                            ]
                           }
                         }
                       }
@@ -1031,6 +1041,9 @@
                     "node_id": {
                       "type": "string"
                     },
+                    "accepts_desktop_trace": {
+                      "type": "boolean"
+                    },
                     "observed_ip": {
                       "oneOf": [
                         {
@@ -1132,6 +1145,24 @@
                       "type": "boolean"
                     }
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/portal/game-profiles": {
+      "get": {
+        "summary": "Regionalne cele diagnostyczne gier",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Wersjonowany katalog profili, regionów i źródeł",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "game-profiles.schema.json"
                 }
               }
             }

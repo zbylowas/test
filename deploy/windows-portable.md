@@ -1,8 +1,18 @@
-# VIP-NET Internet Diagnostics v0.5.5 dla Windows x64
+# NetDiagnostics 0.7.1 · Windows x64
 
-Uruchom `VIP-NET-Diagnostyka.exe` i wybierz **Wykonaj test**. Aplikacja rejestruje tożsamość klienta przy pierwszym połączeniu z serwerem, zapisuje kod w Menedżerze poświadczeń Windows i wykonuje pomiar w tle. Okno pokazuje wynik także przy częściowym pomiarze. Przycisk **Kopiuj kod do panelu** umożliwia logowanie na `https://diagnostics.example.org/klient`. Kod daje dostęp do Twoich raportów. Ten sam użytkownik Windows odzyskuje ostatni raport po ponownym uruchomieniu. Domyślny serwer to `https://diagnostics.example.org`. Administrator prywatnego stagingu może wskazać własny zaufany adres HTTPS przez `VIPNET_DESKTOP_ORIGIN`.
+Uruchom EXE i wybierz **Rozpocznij test**. Profil **Pełna prędkość** korzysta z ustawień przepustowości kontrolowanego węzła. **Mały transfer** używa ustalonej porcji danych. **Pełny raport** otwiera objaśnienie, a **Dane techniczne** pokazują między innymi kartę, adresy IPv4 i IPv6 oraz MTR. Kod w widoku raportu lub historii umożliwia zalogowanie do panelu klienta. System przechowuje go w Menedżerze poświadczeń.
 
-Pakiet stagingowy 0.5.5 nie ma podpisu Authenticode. Porównaj wynik `Get-FileHash .\VIP-NET-Diagnostyka.exe -Algorithm SHA256` z sumą podaną na stronie pobierania. Ostrzeżenie o nieznanym wydawcy dotyczy reputacji pliku. W przypadku wykrycia nazwanego zagrożenia pozostaw plik w kwarantannie i przekaż nazwę wykrycia oraz sumę pliku administratorowi.
+W widoku **MTR i Traceroute** wpisz adres IP albo nazwę hosta, wybierz metodę i kliknij **Wykonaj test**. Zaznacz wiersz skoku, aby odczytać jego statystyki i wykres opóźnień. **Porównaj trasę** zestawia dwa pomiary do tego samego celu wykonane z tymi samymi parametrami. **Pełny raport** otwiera szczegóły tej sesji.
+
+W widoku **Gry online** wybierz profil i region albo podaj własny cel. Ping mierzy czas odpowiedzi celu, a MTR pokazuje drogę pakietów. **Monitoring** umożliwia obserwację do chwili zatrzymania. Przerwane pomiary otworzysz w **Historii**. Tabelę z wybranego widoku zapiszesz przyciskiem **Eksportuj**.
+
+Adres serwera ustala dystrybutor przez opcję CMake `NETDIAG_DESKTOP_ORIGIN`. Można go zmienić w pliku `NetDiagnostics.ini` obok EXE. Zmienna środowiskowa `VIPNET_DESKTOP_ORIGIN` ma pierwszeństwo. Opcjonalny lokalny plik `operator.ico` zastępuje znak programu w nawigacji.
+
+~~~ini
+[NetDiagnostics]
+Server=https://diagnostyka.example.org
+Operator=NetDiagnostics
+~~~
 
 Panel zapisuje IP przy rezerwacji i przy synchronizacji. Identyfikator instalacji Windows umożliwia wyszukanie historii po zmianie IP. Przy niedostępnym identyfikatorze instalacji aplikacja próbuje użyć klucza z profilu kolejki. Ponowna instalacja systemu może zmienić identyfikator. Klonowanie systemu może go powielić. Dostęp do historii zapewnia prywatny kod klienta.
 
@@ -18,6 +28,6 @@ Odczyt Wi-Fi podlega uprawnieniom Windows. Dostępne wartości pochodzą z Nativ
 
 Polecenie `vipnet-mtr.exe --throughput` używa osobnego `VIPNET_NODE_ORIGIN` (bazowy adres HTTPS) i `VIPNET_NODE_TOKEN` wydanego dla kontrolowanego węzła. W stdout najpierw trafiają próbki MTR, a ostatnia linia zawiera dokument pomiaru. Sesja jest dostępna w SQLite do potwierdzenia wysyłki przez API. Pomiary trwają do limitu czasu profilu. Ctrl+C zachowuje dane częściowe. `VIPNET_API_ORIGIN` i `VIPNET_TOKEN` służą do przesyłania wyników. W profilu starszego węzła pobieranie i wysyłanie używają po jednym strumieniu. Aplikacja okienkowa na stagingu wykorzystuje do czterech strumieni HTTPS przez pięć sekund w każdym kierunku, ze wspólnym limitem 1 Gb/s. Klient wyłącza proxy systemowe na potrzeby transferu, weryfikuje certyfikat i porównuje adres innych połączeń z pierwszym połączeniem do węzła.
 
-Po wybraniu **Wykonaj test** obserwuj prędkościomierz ze wskazówką i wykres pobierania i wysyłania. Tarcza ma skalę zgodną z limitem profilu węzła. Liczba pod tarczą podaje zmierzone Mb/s także przy chwilowym przekroczeniu skali. W raporcie znajdziesz kartę użytą przy rezerwacji HTTPS, parametry Wi-Fi, RAM i CPU oraz liczbę unikalnych sąsiadów widocznych na karcie i łącznie na komputerze. Pasywny odczyt ARP/IPv6 obejmuje również routery i telefony. Stan tablicy zależy od ruchu widzianego przez Windows. Starsze pomiary mogą nie zawierać informacji o użytej karcie.
+Podczas pomiaru obserwuj dwie karty transferu. Wykres pokazuje przyrost bajtów w kolejnych przedziałach czasu. Duża liczba po teście jest średnią obliczoną z transferu potwierdzonego przez węzeł. Najedź na wykres, aby odczytać próbkę. Wybierz metrykę lub wiersz diagnostyki, aby poznać szczegóły. Osobno pokazujemy ping ICMP oraz mediany czasów odpowiedzi HTTPS pod obciążeniem. Starsze raporty mogą zawierać tylko średnie.
 
-Wersja 0.5.5 pokazuje prosty wynik po pomiarze. Podczas transferu wskazówka ikony okna porusza się zgodnie z odczytem dużego licznika. Ikona pliku w Eksploratorze ma stały wygląd. Po transferze program sprawdza odpowiedzi routera na aktualnej trasie i serwera rezerwacji. Wybierz **Szczegóły techniczne**, aby obejrzeć dane kart i surowe próbki MTR. Panel WWW podaje również czas każdej próby, odpowiedź sieci oraz kod systemowy.
+Program zachowuje ostatni raport i archiwum JSON w podkatalogu `reports` profilu klienta. Zapis może zawierać prywatne adresy. Serwer od wersji 0.6.0 ogłasza obsługę przebiegów w odpowiedzi rezerwacji. Po połączeniu z serwerem 0.5.5 pełne przebiegi pozostają w lokalnym raporcie, a poprzedni format pomiaru trafia do panelu.

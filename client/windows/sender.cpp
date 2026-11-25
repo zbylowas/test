@@ -82,7 +82,7 @@ Delivery Sender::put(const std::string& path, const std::string& body, bool comp
 #else
     constexpr DWORD proxy = WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY;
 #endif
-    Internet session{WinHttpOpen(L"VIP-NET/0.5.5",proxy,nullptr,nullptr,0)};
+    Internet session{WinHttpOpen(L"VIP-NET/0.7.1",proxy,nullptr,nullptr,0)};
     if (!session || !WinHttpSetTimeouts(session,3000,3000,5000,10000)) return failed();
     Internet connection{WinHttpConnect(session,host_.c_str(),port_,0)};
     if (!connection) return failed();

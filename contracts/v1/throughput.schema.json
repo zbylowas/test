@@ -18,6 +18,7 @@
     "mtr"
   ],
   "properties": {
+    "desktop_trace": {"$ref":"desktop-trace.schema.json"},
     "host_pings": {
       "type": "object", "additionalProperties": false, "required": ["gateway", "node"],
       "properties": {"gateway": {"$ref":"#/$defs/hostPing"}, "node": {"$ref":"#/$defs/hostPing"}}

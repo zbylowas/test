@@ -33,6 +33,10 @@ jobs:
               throw "Unexpected product metadata in $($binary.Name)"
             }
           }
+      - run: .\build\Release\vipnet-route-check.exe
+      - run: .\build\Release\vipnet-summary-check.exe
+      - run: .\build\Release\vipnet-summary-access-check.exe build/Release/VIP-NET-Diagnostyka.exe
+      - run: python scripts/verify_summary_ui.py build/Release/VIP-NET-Diagnostyka.exe
       - run: .\build\Release\vipnet-chart-check.exe
       - run: .\build\Release\vipnet-inventory-report-check.exe
       - run: python scripts/verify_speed_icons.py build/Release/VIP-NET-Diagnostyka.exe

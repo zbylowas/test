@@ -60,6 +60,14 @@ def ingest(kind, sid, seq, raw, actor):
         transfer = doc["throughput"]
         if UUID(transfer["session_id"]) != sid:
             raise Problem(422, "session_id", "Niezgodny identyfikator pomiaru transferu.")
+        if trace := transfer.get("desktop_trace"):
+            if UUID(trace["session_id"]) != sid:
+                raise Problem(422, "session_id", "Seria liczników dotyczy innej sesji.")
+            for direction in ("download", "upload"):
+                rows = trace[direction]
+                if rows and (rows[0] != [0, 0] or rows[-1][1] > transfer["transfers"][direction]["client_bytes"]
+                             or any(t2 <= t1 or n2 < n1 for (t1, n1), (t2, n2) in zip(rows, rows[1:]))):
+                    raise Problem(422, "transfer_series", "Niespójne liczniki transferu.")
         for sample in (r for phase in transfer["phases"].values() for r in phase):
             if (sample["ms"] is None) == (sample["error"] is None):
                 raise Problem(422, "probe", "Próbka wymaga czasu lub przyczyny braku wyniku.")
