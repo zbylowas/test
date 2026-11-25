@@ -1,5 +1,9 @@
 # Historia wydań
 
+## 25 listopada 2026 · katalog gier
+
+- Do katalogu dołączyły Dota 2 i PUBG: BATTLEGROUNDS. W profilu Valoranta można wybrać europejski cel pomiarowy Riot lub własny adres. Windows 0.7.2 pobiera listę z serwera przy pierwszym otwarciu widoku gier po uruchomieniu aplikacji.
+
 ## 0.7.2 · historia
 
 - Zaznaczoną sesję można otworzyć klawiszem Enter, dwuklikiem lub przyciskiem „Otwórz raport”.

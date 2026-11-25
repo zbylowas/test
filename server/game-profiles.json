@@ -45,12 +45,35 @@
       "processes": [
         "VALORANT-Win64-Shipping.exe"
       ],
-      "regions": []
+      "regions": [
+        {
+          "label": "Europa",
+          "host": "162.249.72.1",
+          "method": "icmp",
+          "kind": "official_diagnostic",
+          "verified": "2026-11-25",
+          "source": "https://support.riotgames.com/en-us/valorant/connectivity/how-to-use-tracert-to-obtain-network-logs"
+        }
+      ]
     },
     {
       "name": "League of Legends",
       "processes": [
         "League of Legends.exe"
+      ],
+      "regions": []
+    },
+    {
+      "name": "Dota 2",
+      "processes": [
+        "dota2.exe"
+      ],
+      "regions": []
+    },
+    {
+      "name": "PUBG: BATTLEGROUNDS",
+      "processes": [
+        "TslGame.exe"
       ],
       "regions": []
     },

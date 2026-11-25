@@ -122,6 +122,27 @@ class ContractTests(unittest.TestCase):
             with self.assertRaises(ValidationError):
                 schema.validate(catalog | {"profiles": [profile | {"regions": [region | bad]}]})
 
+    def test_windows_game_profiles(self):
+        games = read(BASE.parents[1] / "server/game-profiles.json")["profiles"]
+        by_name = {game["name"].casefold(): game for game in games}
+        self.assertEqual(len(by_name), len(games), "Game names must be unique in the Windows selector")
+        expected = {
+            "Roblox": "RobloxPlayerBeta.exe",
+            "Counter-Strike 2": "cs2.exe",
+            "Minecraft": "Minecraft.Windows.exe",
+            "Dota 2": "dota2.exe",
+            "League of Legends": "League of Legends.exe",
+            "Valorant": "VALORANT-Win64-Shipping.exe",
+            "PUBG: BATTLEGROUNDS": "TslGame.exe",
+        }
+        for name, process in expected.items():
+            with self.subTest(game=name):
+                self.assertIn(process, by_name[name.casefold()]["processes"])
+        europe = next(r for r in by_name["valorant"]["regions"] if r["label"] == "Europa")
+        self.assertEqual(europe["method"], "icmp")
+        self.assertEqual(europe["kind"], "official_diagnostic")
+        self.assertTrue(europe["source"].startswith("https://support.riotgames.com/"))
+
     def test_session_and_completion(self):
         session = {"schema_version": 1, "session_id": "9a8da3b5-7334-45d4-b3ac-7e7482389a16",
                    "started_at": "2026-11-24T12:00:00Z", "client_version": "stage0", "mode": "portable"}
