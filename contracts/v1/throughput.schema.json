@@ -18,6 +18,10 @@
     "mtr"
   ],
   "properties": {
+    "host_pings": {
+      "type": "object", "additionalProperties": false, "required": ["gateway", "node"],
+      "properties": {"gateway": {"$ref":"#/$defs/hostPing"}, "node": {"$ref":"#/$defs/hostPing"}}
+    },
     "reservation_local_ip": {
       "description": "Local endpoint of the HTTPS reservation connection, for matching the interface in the inventory snapshot.",
       "oneOf": [
@@ -237,6 +241,25 @@
     }
   },
   "$defs": {
+    "hostPing": {
+      "type":"object","additionalProperties":false,
+      "required":["target","timeout_ms","planned","reason","samples"],
+      "properties":{
+        "target":{"anyOf":[{"type":"null"},{"type":"string","format":"ipv4"},{"type":"string","format":"ipv6"}]},
+        "planned":{"const":5},"timeout_ms":{"const":400},
+        "reason":{"type":["null","string"],"maxLength":120},
+        "samples":{"type":"array","maxItems":5,"items":{
+          "type":"object","additionalProperties":false,"required":["at","status","responder","rtt_ms","native_code"],
+          "properties":{
+            "at":{"type":"string","format":"date-time"},"native_code":{"type":"integer","minimum":0},
+            "status":{"enum":["echo_reply","timeout","unavailable","unreachable","ttl_expired","other_responder"]},
+            "responder":{"anyOf":[{"type":"null"},{"type":"string","format":"ipv4"},{"type":"string","format":"ipv6"}]},
+            "rtt_ms":{"type":["integer","null"],"minimum":0}
+          },
+          "allOf":[{"if":{"properties":{"status":{"const":"echo_reply"}}},"then":{"properties":{"rtt_ms":{"type":"integer"},"responder":{"type":"string"}}},"else":{"properties":{"rtt_ms":{"type":"null"}}}}]
+        }}
+      }
+    },
     "probe": {
       "type": "object",
       "additionalProperties": false,

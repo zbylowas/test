@@ -1,6 +1,7 @@
 #include "throughput.hpp"
 #include "speed_chart.hpp"
 #include "inventory_report.hpp"
+#include "reader_report.hpp"
 #include "queue.hpp"
 #include <wincred.h>
 #include <wincrypt.h>
@@ -18,21 +19,33 @@ namespace {
 constexpr UINT done_message = WM_APP + 1, phase_message = WM_APP + 2;
 constexpr UINT_PTR chart_timer = 1;
 constexpr int chart_id = 104;
-constexpr int start_id = 101, copy_id = 102, stop_id = 103;
+constexpr int start_id = 101, copy_id = 102, stop_id = 103, details_id = 105;
 constexpr wchar_t title[] = L"VIP-NET · Diagnostyka internetu";
 HWND heading, intro, start_button, copy_button, stop_button, status_text, report_box;
 HFONT normal_font, heading_font;
-HWND chart_box;
+HWND chart_box, details_button;
 LiveTraffic live_traffic;
 SpeedChart chart;
 int active_direction = 0;
+int window_icon_id = 0;
+void set_window_icon(HWND window,int step) {
+    const int id=step<0 ? 1 : 20+step;
+    if (window_icon_id==id) return;
+    for (int kind:{ICON_SMALL,ICON_BIG}) {
+        const int size=GetSystemMetrics(kind==ICON_SMALL?SM_CXSMICON:SM_CXICON);
+        auto icon=LoadImageW(GetModuleHandleW(nullptr),MAKEINTRESOURCEW(id),IMAGE_ICON,size,size,LR_SHARED);
+        if (icon) SendMessageW(window,WM_SETICON,kind,reinterpret_cast<LPARAM>(icon));
+    }
+    window_icon_id=id;
+}
 std::jthread job;
 std::atomic_bool cancelled{};
 bool busy = false, closing = false;
-std::wstring code, result_text;
-const std::array<std::string,5> phases{"baseline","download","upload","recovery","sync"};
-const std::array<const wchar_t*,5> labels{L"Pomiar w spoczynku",L"Pobieranie danych",L"Wysyłanie danych",
-                                          L"Pomiar po obciążeniu",L"Synchronizacja raportu"};
+std::wstring code, result_text, technical_text;
+bool showing_details=false;
+const std::array<std::string,6> phases{"baseline","download","upload","recovery","sync","ping"};
+const std::array<const wchar_t*,6> labels{L"Pomiar w spoczynku",L"Pobieranie danych",L"Wysyłanie danych",
+                                          L"Pomiar po obciążeniu",L"Zapisywanie raportu",L"Sprawdzanie odpowiedzi routera i serwera"};
 
 std::wstring wide(const std::string& s) {
     if (s.empty()) return {};
@@ -91,7 +104,7 @@ std::optional<double> median(const Json& rows) {
     return (values[(values.size()-1)/2]+values[values.size()/2])/2;
 }
 
-std::wstring render(const Json& data) {
+std::wstring render_technical(const Json& data) {
     const auto& doc=data.at("throughput");
     std::wostringstream out;
     out << std::fixed << std::setprecision(2);
@@ -186,6 +199,7 @@ void layout_report(HWND window) {
 
 void end_chart(HWND window) {
     KillTimer(window,chart_timer);
+    set_window_icon(window,-1);
     active_direction = 0;
     layout_report(window);
 }
@@ -194,7 +208,8 @@ void run(HWND window) {
     live_traffic.received = 0;
     live_traffic.sent = 0;
     live_traffic.profile_bps = 0;
-    busy=true; cancelled=false;
+    busy=true; cancelled=false; showing_details=false; technical_text.clear();
+    SetWindowTextW(details_button,L"Szczegóły techniczne"); ShowWindow(details_button,SW_HIDE);
     EnableWindow(start_button,FALSE); EnableWindow(copy_button,FALSE); EnableWindow(stop_button,TRUE);
     SetWindowTextW(status_text,L"Łączenie z serwerem…");
     SetWindowTextW(report_box,L"Trwa przygotowanie pomiaru.");
@@ -212,11 +227,13 @@ void run(HWND window) {
                 auto it=std::find(phases.begin(),phases.end(),phase);
                 if(it!=phases.end()) PostMessageW(window,phase_message,it-phases.begin(),0);
             },live_traffic);
-            result_text=render(report);
+            result_text=wide(reader_report(report));
+            technical_text=render_technical(report);
             write_report(dir,report);
         } catch(const std::exception& e) {
-            result_text=L"Nie udało się zakończyć testu.\r\n\r\nSerwer   "+origin()+
-                L"\r\nPrzyczyna   "+wide(e.what())+L"\r\n\r\nSprawdź połączenie i ponów test.";
+            result_text=L"Nie udało się ukończyć pomiaru. Sprawdź, czy możesz otworzyć stronę VIP-NET, i ponów test. "
+                        L"Jeśli ten komunikat się powtórzy, przekaż pomocy technicznej informacje z przycisku Szczegóły techniczne.";
+            technical_text=L"Serwer   "+origin()+L"\r\nPrzyczyna   "+wide(e.what());
         }
         PostMessageW(window,done_message,0,0);
     });
@@ -245,6 +262,7 @@ HWND control(HWND parent,const wchar_t* type,const wchar_t* text,DWORD style,int
 LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
     switch(m) {
     case WM_CREATE: {
+        set_window_icon(w,-1);
         normal_font=CreateFontW(-17,0,0,0,FW_NORMAL,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");
         heading_font=CreateFontW(-30,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");
         heading=control(w,L"STATIC",L"Diagnostyka internetu",0,0,heading_font);
@@ -253,14 +271,20 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
         stop_button=control(w,L"BUTTON",L"Zatrzymaj",WS_TABSTOP,stop_id,normal_font);
         copy_button=control(w,L"BUTTON",L"Kopiuj kod do panelu",WS_TABSTOP,copy_id,normal_font);
         status_text=control(w,L"STATIC",L"Gotowy do pomiaru",0,0,normal_font);
+        details_button=control(w,L"BUTTON",L"Szczegóły techniczne",WS_TABSTOP,details_id,normal_font);
+        ShowWindow(details_button,SW_HIDE);
         chart_box=control(w,L"STATIC",L"Prędkościomierz i wykres prędkości",SS_OWNERDRAW,chart_id,normal_font);
         ShowWindow(chart_box,SW_HIDE);
-        report_box=control(w,L"EDIT",L"Wynik pojawi się tutaj po wykonaniu testu.",WS_BORDER|WS_TABSTOP|ES_MULTILINE|ES_READONLY|WS_VSCROLL,0,normal_font);
+        report_box=control(w,L"EDIT",L"Kliknij Wykonaj test. Tutaj zobaczysz prędkość pobierania i wysyłania oraz czas odpowiedzi.",WS_BORDER|WS_TABSTOP|ES_MULTILINE|ES_READONLY|WS_VSCROLL,0,normal_font);
         try {
             auto host=origin(); code=credential(host,false);
             if(!code.empty()) {
                 std::ifstream file(profile(host,code)/L"last-report.json",std::ios::binary);
-                if(file) { auto report=Json::parse(file); SetWindowTextW(report_box,render(report).c_str()); }
+                if(file) {
+                    auto report=Json::parse(file);
+                    result_text=wide(reader_report(report)); technical_text=render_technical(report);
+                    SetWindowTextW(report_box,result_text.c_str()); ShowWindow(details_button,SW_SHOWNA);
+                }
             }
         } catch(const std::exception&) { SetWindowTextW(status_text,L"Poprzedni raport jest niedostępny."); }
         EnableWindow(stop_button,FALSE); EnableWindow(copy_button,!code.empty());
@@ -273,10 +297,15 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
         int width=LOWORD(b)-48;
         MoveWindow(heading,24,18,width,42,TRUE); MoveWindow(intro,24,67,width,50,TRUE);
         MoveWindow(start_button,24,121,145,40,TRUE); MoveWindow(stop_button,177,121,104,40,TRUE);
-        MoveWindow(copy_button,289,121,194,40,TRUE); MoveWindow(status_text,24,178,width,27,TRUE);
+        MoveWindow(copy_button,289,121,194,40,TRUE); MoveWindow(status_text,24,174,std::max(140,width-192),32,TRUE); MoveWindow(details_button,width-152,171,176,32,TRUE);
         layout_report(w); return 0;
     }
     case WM_COMMAND:
+        if(LOWORD(a)==details_id && !busy && !technical_text.empty()) {
+            showing_details=!showing_details;
+            SetWindowTextW(report_box,(showing_details?technical_text:result_text).c_str());
+            SetWindowTextW(details_button,showing_details?L"Prosty wynik":L"Szczegóły techniczne");
+        }
         if(LOWORD(a)==start_id && !busy) run(w);
         if(LOWORD(a)==stop_id && busy) {cancelled=true; end_chart(w); SetWindowTextW(status_text,L"Zatrzymywanie pomiaru…");}
         if(LOWORD(a)==copy_id && !busy)
@@ -293,6 +322,7 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
         if(a==chart_timer && active_direction && !cancelled) {
             const auto bytes = active_direction==1 ? live_traffic.received.load() : live_traffic.sent.load();
             chart.sample(bytes);
+            set_window_icon(w,chart.icon_step());
             auto text=std::wstring(labels[active_direction])+L"   ·   "+chart.readout();
             SetWindowTextW(status_text,text.c_str());
             InvalidateRect(chart_box,nullptr,FALSE);
@@ -306,6 +336,7 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
                 active_direction=static_cast<int>(a);
                 chart.reset(a==1 ? live_traffic.received.load() : live_traffic.sent.load(),
                             live_traffic.profile_bps.load()/1000000.0);
+                set_window_icon(w,0);
                 layout_report(w);
                 SetTimer(w,chart_timer,50,nullptr);
             }
@@ -315,6 +346,7 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
         job.join(); busy=false; end_chart(w);
         if(closing){DestroyWindow(w);return 0;}
         EnableWindow(start_button,TRUE); EnableWindow(stop_button,FALSE); EnableWindow(copy_button,!code.empty());
+        ShowWindow(details_button,technical_text.empty()?SW_HIDE:SW_SHOWNA);
         SetWindowTextW(report_box,result_text.c_str()); SetWindowTextW(status_text,L"Test zakończony"); return 0;
     case WM_CLOSE:
         if(busy){ closing=true; cancelled=true; end_chart(w); SetWindowTextW(status_text,L"Zapis wyniku przed zamknięciem…"); }
@@ -331,7 +363,7 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,PWSTR,int show) {
     SetProcessDPIAware();
     WNDCLASSW cls{}; cls.hInstance=instance; cls.lpszClassName=L"VipNetDiagnosticsWindow";
     cls.lpfnWndProc=dispatch; cls.hCursor=LoadCursorW(nullptr,IDC_ARROW);
-    cls.hbrBackground=reinterpret_cast<HBRUSH>(COLOR_BTNFACE+1); cls.hIcon=LoadIconW(nullptr,IDI_APPLICATION);
+    cls.hbrBackground=reinterpret_cast<HBRUSH>(COLOR_BTNFACE+1); cls.hIcon=LoadIconW(instance,MAKEINTRESOURCEW(1));
     if(!RegisterClassW(&cls)) return 1;
     auto w=CreateWindowW(cls.lpszClassName,title,WS_OVERLAPPEDWINDOW,CW_USEDEFAULT,CW_USEDEFAULT,800,650,nullptr,nullptr,instance,nullptr);
     if(!w) return 1;

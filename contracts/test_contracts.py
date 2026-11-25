@@ -22,6 +22,21 @@ def validator(name):
 
 
 class ContractTests(unittest.TestCase):
+    def test_host_pings_and_older_transfers(self):
+        schema = validator("throughput.schema.json")
+        doc = read(BASE.parents[1] / "fixtures/throughput.json")
+        schema.validate(doc)
+        sample = {"at":doc["started_at"], "status":"echo_reply", "rtt_ms":0, "native_code":0, "responder":"192.0.2.1"}
+        gateway = {"target":"192.0.2.1", "planned":5, "timeout_ms":400, "reason":None, "samples":[sample]*5}
+        node = dict(gateway, target=None, reason="no_reservation", samples=[])
+        def report(g):
+            return doc | {"host_pings":{"gateway":g, "node":node}}
+        schema.validate(report(gateway))
+        schema.validate(report(dict(gateway,reason="cancelled",samples=[])))
+        for invalid in ([sample]*6, [dict(sample, status="timeout")], [dict(sample, rtt_ms=None)]):
+            with self.assertRaises(ValidationError):
+                schema.validate(report(dict(gateway,samples=invalid)))
+
     def test_reservation_endpoint_and_legacy_transfer(self):
         doc = read(BASE.parents[1] / "fixtures/throughput.json")
         schema = validator("throughput.schema.json")

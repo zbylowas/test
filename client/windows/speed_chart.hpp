@@ -10,6 +10,7 @@ public:
     void reset(std::uint64_t bytes, double scale_mbps);
     void sample(std::uint64_t bytes);
     std::wstring readout() const;
+    int icon_step() const;
     void paint(HDC dc, RECT bounds, HFONT normal, HFONT heading, bool upload) const;
 private:
     using Clock = std::chrono::steady_clock;

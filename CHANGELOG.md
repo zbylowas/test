@@ -1,5 +1,11 @@
 # Historia wydań
 
+## 0.5.5 · 25 listopada 2026
+
+- Aplikacja objaśnia pobieranie, wysyłanie, możliwe ograniczenia i brakujące odpowiedzi na trasie. Przycisk „Szczegóły techniczne” otwiera pełny raport. Klient wykonuje oddzielne pingi ICMP do routera wybranego dla trasy i do rzeczywistego serwera testu.
+- Portal opisuje każdy pomiar, pokazuje czasy bezpośrednich pingów, liczniki transferu, statystyki routerów i podstawy wniosków. Można odczytać wcześniejsze sesje.
+- Plik EXE ma własną ikonę prędkościomierza. W aktywnym oknie wskazówka ma 21 położeń zależnych od aktualnej szybkości.
+
 ## 0.5.4 · 25 listopada 2026
 
 - Aplikacja Windows pokazuje na żywo półokrągły prędkościomierz ze wskazówką, wartość w Mb/s i wykres ostatnich sześciu sekund. Skala tarczy pochodzi z profilu węzła. Odczyty wynikają z rzeczywistej liczby przesłanych bajtów.

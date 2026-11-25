@@ -66,7 +66,7 @@ RX / TX {{measurement(r.connection.value?.rx_kbps,r.connection,' Mb/s',1000)}} /
   <dt>Ruch przed testem RX / TX</dt><dd>{{measurement(n.traffic.value?.rx_bps,n.traffic,' Mb/s',1e6)}} / {{measurement(n.traffic.value?.tx_bps,n.traffic,' Mb/s',1e6)}}</dd>
   <dt>Błędy RX / TX</dt><dd>{{measurement(n.counters.value?.rx_errors,n.counters)}} / {{measurement(n.counters.value?.tx_errors,n.counters)}}</dd>
   <dt>Odrzucenia RX / TX</dt><dd>{{measurement(n.counters.value?.rx_discards,n.counters)}} / {{measurement(n.counters.value?.tx_discards,n.counters)}}</dd>
-  <dt>Adresy</dt><dd>{{n.unicast.value?.map(a=>a.ip+'/'+a.prefix_length).join(', ')|| (n.unicast.value?'brak wpisów':missing(n.unicast))}}</dd>
+  <template v-for="v6 in [false,true]" :key="String(v6)"><dt>{{v6?'IPv6':'IPv4'}} na komputerze</dt><dd>{{n.unicast.value?.filter(a=>a.ip.includes(':')===v6).map(a=>a.ip+'/'+a.prefix_length).join(', ')|| (n.unicast.value?'brak w pomiarze':missing(n.unicast))}}</dd></template>
   <dt>Bramy</dt><dd>{{list(n.gateways)}}</dd><dt>DNS</dt><dd>{{list(n.dns)}}</dd><dt>MTU</dt><dd>{{n.mtu}}</dd>
 </dl></details></section>
 </template>

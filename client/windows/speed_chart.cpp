@@ -27,6 +27,11 @@ void SpeedChart::sample(std::uint64_t bytes) {
     while (points_.size() > 1 && points_[1].at <= now - 6s) points_.pop_front();
 }
 
+int SpeedChart::icon_step() const {
+    if (points_.empty() || scale_mbps_<=0) return -1;
+    return static_cast<int>(std::lround(20*std::clamp(points_.back().mbps/scale_mbps_,0.0,1.0)));
+}
+
 std::wstring SpeedChart::readout() const {
     if (points_.empty()) return L"Oczekiwanie na dane";
     std::wostringstream text;

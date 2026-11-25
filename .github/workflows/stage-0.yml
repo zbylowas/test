@@ -35,6 +35,7 @@ jobs:
           }
       - run: .\build\Release\vipnet-chart-check.exe
       - run: .\build\Release\vipnet-inventory-report-check.exe
+      - run: python scripts/verify_speed_icons.py build/Release/VIP-NET-Diagnostyka.exe
       - run: python scripts/verify_windows.py build/Release/vipnet-mtr.exe -v
       - run: python scripts/verify_inventory.py build/Release/vipnet-mtr.exe .local/ci-inventory
       - run: python scripts/verify_reverse.py build/Release/vipnet-mtr.exe .local/ci-reverse
