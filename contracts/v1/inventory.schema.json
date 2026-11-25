@@ -1,0 +1,289 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Inwentaryzacja Windows v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "captured_at",
+    "finished_at",
+    "system",
+    "interfaces",
+    "routes",
+    "neighbors",
+    "unique_neighbor_macs",
+    "wifi",
+    "gateway_changes",
+    "duplicate_addresses"
+  ],
+  "properties": {
+    "captured_at": {"type": "string", "format": "date-time"},
+    "finished_at": {"type": "string", "format": "date-time"},
+    "system": {"$ref": "#/$defs/System"},
+    "interfaces": {
+      "allOf": [
+        {"$ref": "#/$defs/Table"},
+        {"properties": {"value": {"type": "array", "maxItems": 32, "items": {"$ref": "#/$defs/Interface"}}}}
+      ]
+    },
+    "routes": {
+      "allOf": [
+        {"$ref": "#/$defs/Table"},
+        {"properties": {"value": {"type": "array", "maxItems": 128, "items": {"$ref": "#/$defs/Route"}}}}
+      ]
+    },
+    "neighbors": {
+      "allOf": [
+        {"$ref": "#/$defs/Table"},
+        {"properties": {"value": {"type": "array", "maxItems": 128, "items": {"$ref": "#/$defs/Neighbor"}}}}
+      ]
+    },
+    "unique_neighbor_macs": {"$ref": "#/$defs/CountValue"},
+    "wifi": {
+      "allOf": [
+        {"$ref": "#/$defs/Table"},
+        {"properties": {"value": {"type": "array", "maxItems": 16, "items": {"$ref": "#/$defs/Radio"}}}}
+      ]
+    },
+    "gateway_changes": {
+      "allOf": [
+        {"$ref": "#/$defs/Table"},
+        {"properties": {"value": {"type": "array", "maxItems": 128, "items": {"$ref": "#/$defs/GatewayChange"}}}}
+      ]
+    },
+    "duplicate_addresses": {
+      "allOf": [
+        {"$ref": "#/$defs/Table"},
+        {
+          "properties": {
+            "value": {
+              "type": "array",
+              "maxItems": 128,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["index", "ip"],
+                "properties": {"index": {"$ref": "#/$defs/Count"}, "ip": {"$ref": "#/$defs/Address"}}
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "Count": {"type": "integer", "minimum": 0},
+    "String": {"type": "string", "maxLength": 512},
+    "Address": {"type": "string", "anyOf": [{"format": "ipv4"}, {"format": "ipv6"}]},
+    "MacId": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "Ok": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "value"],
+      "properties": {"status": {"const": "ok"}, "value": {}}
+    },
+    "Unavailable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "reason"],
+      "properties": {"status": {"const": "unavailable"}, "reason": {"$ref": "#/$defs/String"}}
+    },
+    "Partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "reason", "total", "value"],
+      "properties": {
+        "status": {"const": "partial"},
+        "reason": {"$ref": "#/$defs/String"},
+        "total": {"$ref": "#/$defs/Count"},
+        "value": {}
+      }
+    },
+    "Reading": {"oneOf": [{"$ref": "#/$defs/Ok"}, {"$ref": "#/$defs/Unavailable"}]},
+    "Table": {"oneOf": [{"$ref": "#/$defs/Ok"}, {"$ref": "#/$defs/Partial"}, {"$ref": "#/$defs/Unavailable"}]},
+    "TextValue": {"allOf": [{"$ref": "#/$defs/Reading"}, {"properties": {"value": {"$ref": "#/$defs/String"}}}]},
+    "CountValue": {"allOf": [{"$ref": "#/$defs/Reading"}, {"properties": {"value": {"$ref": "#/$defs/Count"}}}]},
+    "MacValue": {"allOf": [{"$ref": "#/$defs/Reading"}, {"properties": {"value": {"$ref": "#/$defs/MacId"}}}]},
+    "PercentValue": {"allOf": [{"$ref": "#/$defs/Reading"}, {"properties": {"value": {"type": "number", "minimum": 0}}}]},
+    "System": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["windows", "architecture", "logical_processors", "cpu_model", "memory"],
+      "properties": {
+        "windows": {"$ref": "#/$defs/TextValue"},
+        "architecture": {"$ref": "#/$defs/String"},
+        "logical_processors": {"$ref": "#/$defs/Count"},
+        "cpu_model": {"$ref": "#/$defs/TextValue"},
+        "memory": {
+          "allOf": [
+            {"$ref": "#/$defs/Reading"},
+            {
+              "properties": {
+                "value": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["total_bytes", "available_bytes"],
+                  "properties": {"total_bytes": {"$ref": "#/$defs/Count"}, "available_bytes": {"$ref": "#/$defs/Count"}}
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "Unicast": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ip", "prefix_length", "dad_state"],
+      "properties": {
+        "ip": {"$ref": "#/$defs/Address"},
+        "prefix_length": {"type": "integer", "minimum": 0, "maximum": 128},
+        "dad_state": {"$ref": "#/$defs/Count"}
+      }
+    },
+    "AddressList": {
+      "allOf": [
+        {"$ref": "#/$defs/Table"},
+        {"properties": {"value": {"type": "array", "maxItems": 16, "items": {"$ref": "#/$defs/Address"}}}}
+      ]
+    },
+    "Link": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rx_bps", "tx_bps"],
+      "properties": {"rx_bps": {"$ref": "#/$defs/Count"}, "tx_bps": {"$ref": "#/$defs/Count"}}
+    },
+    "Counters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rx_errors", "tx_errors", "rx_discards", "tx_discards", "rx_bytes", "tx_bytes"],
+      "properties": {
+        "rx_errors": {"$ref": "#/$defs/Count"},
+        "tx_errors": {"$ref": "#/$defs/Count"},
+        "rx_discards": {"$ref": "#/$defs/Count"},
+        "tx_discards": {"$ref": "#/$defs/Count"},
+        "rx_bytes": {"$ref": "#/$defs/Count"},
+        "tx_bytes": {"$ref": "#/$defs/Count"}
+      }
+    },
+    "Traffic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["interval_ms", "rx_bps", "tx_bps", "rx_utilization_pct", "tx_utilization_pct"],
+      "properties": {
+        "interval_ms": {"$ref": "#/$defs/Count"},
+        "rx_bps": {"type": "number", "minimum": 0},
+        "tx_bps": {"type": "number", "minimum": 0},
+        "rx_utilization_pct": {"$ref": "#/$defs/PercentValue"},
+        "tx_utilization_pct": {"$ref": "#/$defs/PercentValue"}
+      }
+    },
+    "Interface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "index",
+        "model",
+        "type",
+        "oper_status",
+        "mtu",
+        "unicast",
+        "gateways",
+        "dns",
+        "mac_id",
+        "driver",
+        "link",
+        "counters",
+        "traffic"
+      ],
+      "properties": {
+        "id": {"$ref": "#/$defs/String"},
+        "index": {"$ref": "#/$defs/Count"},
+        "model": {"$ref": "#/$defs/TextValue"},
+        "type": {"$ref": "#/$defs/Count"},
+        "oper_status": {"$ref": "#/$defs/Count"},
+        "mtu": {"$ref": "#/$defs/Count"},
+        "unicast": {
+          "allOf": [
+            {"$ref": "#/$defs/Table"},
+            {"properties": {"value": {"type": "array", "maxItems": 32, "items": {"$ref": "#/$defs/Unicast"}}}}
+          ]
+        },
+        "gateways": {"$ref": "#/$defs/AddressList"},
+        "dns": {"$ref": "#/$defs/AddressList"},
+        "mac_id": {"$ref": "#/$defs/MacValue"},
+        "driver": {"$ref": "#/$defs/TextValue"},
+        "link": {"allOf": [{"$ref": "#/$defs/Reading"}, {"properties": {"value": {"$ref": "#/$defs/Link"}}}]},
+        "counters": {"allOf": [{"$ref": "#/$defs/Reading"}, {"properties": {"value": {"$ref": "#/$defs/Counters"}}}]},
+        "traffic": {"allOf": [{"$ref": "#/$defs/Reading"}, {"properties": {"value": {"$ref": "#/$defs/Traffic"}}}]}
+      }
+    },
+    "Route": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "prefix", "prefix_length", "next_hop", "metric"],
+      "properties": {
+        "index": {"$ref": "#/$defs/Count"},
+        "prefix": {"$ref": "#/$defs/Address"},
+        "prefix_length": {"$ref": "#/$defs/Count"},
+        "next_hop": {"$ref": "#/$defs/Address"},
+        "metric": {"$ref": "#/$defs/Count"}
+      }
+    },
+    "Neighbor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "ip", "state", "mac_id", "vendor"],
+      "properties": {
+        "index": {"$ref": "#/$defs/Count"},
+        "ip": {"$ref": "#/$defs/Address"},
+        "state": {"$ref": "#/$defs/Count"},
+        "mac_id": {"$ref": "#/$defs/MacValue"},
+        "vendor": {"$ref": "#/$defs/TextValue"}
+      }
+    },
+    "Radio": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "state", "connection", "rssi_dbm", "channel"],
+      "properties": {
+        "id": {"$ref": "#/$defs/String"},
+        "state": {"$ref": "#/$defs/Count"},
+        "connection": {
+          "allOf": [
+            {"$ref": "#/$defs/Reading"},
+            {
+              "properties": {
+                "value": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["bssid_id", "phy", "signal_pct", "rx_kbps", "tx_kbps"],
+                  "properties": {
+                    "bssid_id": {"$ref": "#/$defs/MacValue"},
+                    "phy": {"$ref": "#/$defs/Count"},
+                    "signal_pct": {"type": "integer", "minimum": 0, "maximum": 100},
+                    "rx_kbps": {"$ref": "#/$defs/Count"},
+                    "tx_kbps": {"$ref": "#/$defs/Count"}
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "rssi_dbm": {"allOf": [{"$ref": "#/$defs/Reading"}, {"properties": {"value": {"type": "integer"}}}]},
+        "channel": {"$ref": "#/$defs/CountValue"}
+      }
+    },
+    "GatewayChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["interface_id", "ip", "previous_mac_id", "current_mac_id"],
+      "properties": {
+        "interface_id": {"$ref": "#/$defs/String"},
+        "ip": {"$ref": "#/$defs/Address"},
+        "previous_mac_id": {"$ref": "#/$defs/MacId"},
+        "current_mac_id": {"$ref": "#/$defs/MacId"}
+      }
+    }
+  }
+}

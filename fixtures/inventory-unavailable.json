@@ -1,0 +1,48 @@
+{
+  "captured_at": "2026-11-24T12:00:00Z",
+  "finished_at": "2026-11-24T12:00:01Z",
+  "system": {
+    "windows": {
+      "status": "unavailable",
+      "reason": "synthetic_fixture_no_device"
+    },
+    "architecture": "x64",
+    "logical_processors": 2,
+    "cpu_model": {
+      "status": "unavailable",
+      "reason": "synthetic_fixture_no_device"
+    },
+    "memory": {
+      "status": "unavailable",
+      "reason": "synthetic_fixture_no_device"
+    }
+  },
+  "interfaces": {
+    "status": "unavailable",
+    "reason": "synthetic_fixture_no_device"
+  },
+  "routes": {
+    "status": "unavailable",
+    "reason": "synthetic_fixture_no_device"
+  },
+  "neighbors": {
+    "status": "unavailable",
+    "reason": "synthetic_fixture_no_device"
+  },
+  "unique_neighbor_macs": {
+    "status": "unavailable",
+    "reason": "synthetic_fixture_no_device"
+  },
+  "wifi": {
+    "status": "unavailable",
+    "reason": "synthetic_fixture_no_device"
+  },
+  "gateway_changes": {
+    "status": "unavailable",
+    "reason": "synthetic_fixture_no_device"
+  },
+  "duplicate_addresses": {
+    "status": "unavailable",
+    "reason": "synthetic_fixture_no_device"
+  }
+}

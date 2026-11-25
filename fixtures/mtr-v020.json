@@ -1,0 +1,20 @@
+[
+  {"name":"zdrowa ścieżka","rtt":[2,5,8],"want":[]},
+  {"name":"brak odpowiedzi pośredniej","rtt":[2,null,8],"want":["hop.silent"]},
+  {"name":"możliwe ograniczanie ICMP","rtt":[2,[null,5,null,5,5],8],"want":["hop.possible_icmp_limiting"]},
+  {"name":"braki w tych samych rundach do celu","rtt":[2,[null,5,null,5,5],[null,8,null,8,8]],"want":["destination.missing_replies","loss.persistent_to_target"]},
+  {"name":"braki w różnych rundach","rtt":[2,[5,null,5,null,5],[null,8,null,8,8]],"want":["destination.missing_replies"]},
+  {"name":"pojedynczy wolny router","rtt":[2,90,8],"want":["latency.isolated_hop"]},
+  {"name":"stały skok od drugiego TTL","rtt":[2,60,65],"want":["latency.sustained_step"]},
+  {"name":"potwierdzona granica sieci","rtt":[2,60,65],"networks":{"192.0.2.1":"TEST-A","192.0.2.2":"TEST-B"},"want":["latency.sustained_step","boundary.possible_delay"]},
+  {"name":"w obrębie tej samej sieci","rtt":[2,60,65],"networks":{"192.0.2.1":"TEST-A","192.0.2.2":"TEST-A"},"want":["latency.sustained_step"]},
+  {"name":"opóźnienie już na pierwszym TTL","rtt":[45,48,52],"want":["latency.sustained_step","lan.possible_delay"]},
+  {"name":"jednorazowy pik RTT","rtt":[2,[50,5,5,5,5],8],"want":[]},
+  {"name":"za mało rund","rounds":3,"rtt":[2,50,55],"want":["sample.insufficient"]},
+  {"name":"jawna niedostępność","rtt":[2,5,1],"terminal":"unreachable","want":["destination.unreachable"]},
+  {"name":"brak dowodu dotarcia","rtt":[2,5,null],"want":["destination.unconfirmed"]},
+  {"name":"zmiana adresu w czasie","rtt":[2,5,8],"hop2_suffix":[2,2,2,6,6],"want":["route.multiple_responders","route.change"]},
+  {"name":"przeplatane ścieżki","rtt":[2,5,8],"hop2_suffix":[2,6,2,6,2],"want":["route.multiple_responders","route.possible_ecmp"]},
+  {"name":"TCP odmowa połączenia","rtt":[2,5,8],"protocol":"tcp","terminal":"tcp_refused","want":[]},
+  {"name":"TCP potwierdzenie","rtt":[2,5,8],"protocol":"tcp","want":[]}
+]

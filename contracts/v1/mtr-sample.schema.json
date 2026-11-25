@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Próbka MTR v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "session_id",
+    "timestamp",
+    "target",
+    "family",
+    "protocol",
+    "phase",
+    "attempt",
+    "ttl",
+    "status",
+    "native_code",
+    "responder",
+    "rtt_ms"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "session_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "target": {
+      "type": "string"
+    },
+    "family": {
+      "enum": [
+        4,
+        6
+      ]
+    },
+    "protocol": {
+      "enum": [
+        "icmp",
+        "tcp"
+      ]
+    },
+    "tcp_port": {
+      "const": 443
+    },
+    "phase": {
+      "enum": [
+        "baseline",
+        "download",
+        "upload",
+        "recovery"
+      ]
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535
+    },
+    "ttl": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 255
+    },
+    "status": {
+      "enum": [
+        "echo_reply",
+        "ttl_expired",
+        "unreachable",
+        "timeout",
+        "unavailable",
+        "tcp_connected",
+        "tcp_refused"
+      ]
+    },
+    "native_code": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295
+    },
+    "responder": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "rtt_ms": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "family": {
+            "const": 4
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "target": {
+            "format": "ipv4"
+          },
+          "responder": {
+            "format": "ipv4"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "target": {
+            "format": "ipv6"
+          },
+          "responder": {
+            "format": "ipv6"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "timeout",
+              "unavailable"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "responder": {
+            "type": "null"
+          },
+          "rtt_ms": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "responder": {
+            "type": "string"
+          },
+          "rtt_ms": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "protocol": {
+            "const": "icmp"
+          }
+        }
+      },
+      "then": {
+        "not": {"required": ["tcp_port"]},
+        "properties": {
+          "status": {
+            "not": {
+              "enum": [
+                "tcp_connected",
+                "tcp_refused"
+              ]
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "status": {
+            "not": {
+              "const": "echo_reply"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

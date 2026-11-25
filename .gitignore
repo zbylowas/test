@@ -1,0 +1,10 @@
+/build*/
+/.local/
+/out/
+/frontend/node_modules/
+/frontend/dist/
+__pycache__/
+.venv/
+.env
+*.pfx
+*.key

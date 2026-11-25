@@ -1,0 +1,3 @@
+# Only the test and contract validation environment uses these packages.
+jsonschema[format-nongpl]==4.25.1
+openapi-spec-validator==0.7.2

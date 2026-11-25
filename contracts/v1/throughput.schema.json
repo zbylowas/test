@@ -1,0 +1,369 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Przepustowość HTTPS i próbki opóźnienia",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "session_id",
+    "windows_version",
+    "started_at",
+    "ended_at",
+    "node_id",
+    "peer",
+    "profile",
+    "error",
+    "phases",
+    "transfers",
+    "mtr"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "session_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "windows_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "ended_at": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "node_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "peer": {
+      "anyOf": [
+        {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "ipv4"
+            },
+            {
+              "type": "string",
+              "format": "ipv6"
+            }
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "profile": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "bytes",
+            "rate_bps",
+            "deadline_s"
+          ],
+          "properties": {
+            "bytes": {
+              "type": "integer",
+              "minimum": 65536,
+              "maximum": 67108864
+            },
+            "rate_bps": {
+              "type": "integer",
+              "minimum": 262144,
+              "maximum": 100000000
+            },
+            "deadline_s": {
+              "type": "integer",
+              "minimum": 10,
+              "maximum": 180
+            }
+          }
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "bytes",
+            "rate_bps",
+            "deadline_s",
+            "mode",
+            "streams",
+            "window_ms"
+          ],
+          "properties": {
+            "bytes": {
+              "type": "integer",
+              "minimum": 65536,
+              "maximum": 536870912
+            },
+            "rate_bps": {
+              "type": "integer",
+              "minimum": 262144,
+              "maximum": 1000000000
+            },
+            "deadline_s": {
+              "type": "integer",
+              "minimum": 10,
+              "maximum": 180
+            },
+            "mode": {
+              "const": "windowed"
+            },
+            "window_ms": {
+              "type": "integer",
+              "minimum": 2000,
+              "maximum": 10000
+            },
+            "streams": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4
+            }
+          }
+        }
+      ]
+    },
+    "error": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "phases": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseline",
+        "download",
+        "upload",
+        "recovery"
+      ],
+      "properties": {
+        "baseline": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/probe"
+          }
+        },
+        "download": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/probe"
+          }
+        },
+        "upload": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/probe"
+          }
+        },
+        "recovery": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/probe"
+          }
+        }
+      }
+    },
+    "transfers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "download",
+        "upload"
+      ],
+      "properties": {
+        "download": {
+          "$ref": "#/$defs/transfer"
+        },
+        "upload": {
+          "$ref": "#/$defs/transfer"
+        }
+      }
+    },
+    "mtr": {
+      "const": {
+        "attempts": 5,
+        "max_ttl": 8,
+        "timeout_ms": 200,
+        "interval_ms": 100,
+        "protocol": "icmp"
+      }
+    }
+  },
+  "$defs": {
+    "probe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "at",
+        "ms",
+        "error"
+      ],
+      "properties": {
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "ms": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 120000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "transfer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "reason",
+        "started_at",
+        "ended_at",
+        "client_bytes",
+        "node_bytes",
+        "duration_ms",
+        "node_duration_ms"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "ok",
+            "partial",
+            "unavailable"
+          ]
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "started_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ended_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "client_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 536870912
+        },
+        "node_bytes": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 536870912
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "duration_ms": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "node_duration_ms": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

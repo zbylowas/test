@@ -1,0 +1,1143 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "VIP-NET Internet Diagnostics",
+    "version": "0.5.2"
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ],
+  "security": [
+    {
+      "bearer": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "schemas": {
+      "SessionState": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "session_id",
+          "state"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "enum": [
+              "open",
+              "completed",
+              "partial",
+              "cancelled",
+              "failed"
+            ]
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "detail"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "responses": {
+      "Unauthenticated": {
+        "description": "Brak poświadczeń",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Brak zakresu",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Brak dostępu do sesji",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Konflikt treści, stanu lub manifestu",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "TooLarge": {
+        "description": "Limit przed lub po dekompresji",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Invalid": {
+        "description": "Niepoprawne dane",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "Limit żądań",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "StorageUnavailable": {
+        "description": "Magazyn czasowo niedostępny",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "MediaType": {
+        "description": "Nieobsługiwany format lub kodowanie",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "BadPeer": {
+        "description": "Niepoprawne dane połączenia",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/sessions/{session_id}": {
+      "parameters": [
+        {
+          "name": "session_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "put": {
+        "operationId": "openSession",
+        "summary": "Utworzenie sesji lub powtórzenie identycznego otwarcia",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "session.schema.json"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Powtórzenie",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionState"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Utworzono",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionState"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "422": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadPeer"
+          },
+          "503": {
+            "$ref": "#/components/responses/StorageUnavailable"
+          },
+          "415": {
+            "$ref": "#/components/responses/MediaType"
+          }
+        }
+      },
+      "get": {
+        "operationId": "getSession",
+        "summary": "Stan własnej lub przydzielonej sesji",
+        "responses": {
+          "200": {
+            "description": "Stan i identyfikator",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionState"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadPeer"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/StorageUnavailable"
+          }
+        }
+      }
+    },
+    "/sessions/{session_id}/chunks/{sequence}": {
+      "parameters": [
+        {
+          "name": "session_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        {
+          "name": "sequence",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65535
+          }
+        }
+      ],
+      "put": {
+        "operationId": "putChunk",
+        "summary": "Niezmienna porcja pod stałym numerem",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "chunk.schema.json"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Przyjęto lub identyczny duplikat"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "422": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadPeer"
+          },
+          "503": {
+            "$ref": "#/components/responses/StorageUnavailable"
+          },
+          "415": {
+            "$ref": "#/components/responses/MediaType"
+          }
+        }
+      }
+    },
+    "/sessions/{session_id}/completion": {
+      "parameters": [
+        {
+          "name": "session_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "put": {
+        "operationId": "finishSession",
+        "summary": "Atomowe zamknięcie i zlecenie analizy",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "completion.schema.json"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Identyczne powtórzenie",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionState"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Zamknięcie przyjęte",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionState"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "422": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadPeer"
+          },
+          "503": {
+            "$ref": "#/components/responses/StorageUnavailable"
+          },
+          "415": {
+            "$ref": "#/components/responses/MediaType"
+          }
+        }
+      }
+    },
+    "/sessions": {
+      "get": {
+        "operationId": "listSessions",
+        "summary": "Historia dostępnych sesji",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000,
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/BadPeer"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/StorageUnavailable"
+          },
+          "200": {
+            "description": "Sesje od najnowszej",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SessionState"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health",
+        "security": [],
+        "summary": "Gotowość magazynu",
+        "responses": {
+          "200": {
+            "description": "Wersja i stan magazynu",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "version",
+                    "status"
+                  ],
+                  "properties": {
+                    "version": {
+                      "const": "0.4.0"
+                    },
+                    "status": {
+                      "const": "ready"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/StorageUnavailable"
+          }
+        }
+      }
+    },
+    "/sessions/{session_id}/analysis": {
+      "parameters": [
+        {
+          "name": "session_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getSessionAnalysis",
+        "summary": "Wynik analizy według wersji reguł",
+        "responses": {
+          "200": {
+            "description": "Zapisany wynik i skrót manifestu",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "session_id",
+                    "rules_version",
+                    "input_sha256",
+                    "result"
+                  ],
+                  "properties": {
+                    "session_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "rules_version": {
+                      "type": "string"
+                    },
+                    "input_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "result": {
+                      "type": "object",
+                      "required": [
+                        "sample_count",
+                        "series"
+                      ],
+                      "properties": {
+                        "sample_count": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "series": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        "findings": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        }
+                      }
+                    },
+                    "measurement": {
+                      "anyOf": [
+                        {
+                          "$ref": "session.schema.json#/properties/measurement"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "client_version": {
+                      "type": "string"
+                    },
+                    "started_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadPeer"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/StorageUnavailable"
+          },
+          "422": {
+            "$ref": "#/components/responses/Invalid"
+          }
+        },
+        "parameters": [
+          {
+            "name": "rules_version",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "default": "0.2.0"
+            },
+            "in": "query"
+          }
+        ]
+      }
+    },
+    "/sessions/{session_id}/inventory": {
+      "parameters": [
+        {
+          "name": "session_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getInventory",
+        "summary": "Stan komputera i sieci z pomiaru",
+        "responses": {
+          "200": {
+            "description": "Dokument z chwili pomiaru",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "inventory.schema.json"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadPeer"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/StorageUnavailable"
+          }
+        }
+      }
+    },
+    "/sessions/{session_id}/throughput": {
+      "parameters": [
+        {
+          "name": "session_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getThroughput",
+        "summary": "Pomiar przepustowości i wzrost opóźnienia pod obciążeniem",
+        "responses": {
+          "200": {
+            "description": "Dokument z chwili pomiaru",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "session_id",
+                    "throughput",
+                    "interpretation"
+                  ],
+                  "properties": {
+                    "session_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "throughput": {
+                      "$ref": "throughput.schema.json"
+                    },
+                    "interpretation": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadPeer"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/StorageUnavailable"
+          }
+        }
+      }
+    },
+    "/portal/clients": {
+      "post": {
+        "summary": "Rejestracja klienta aplikacji w organizacji portalu",
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "token"
+                  ],
+                  "properties": {
+                    "token": {
+                      "type": "string",
+                      "minLength": 32
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/portal/me": {
+      "get": {
+        "summary": "Rola zalogowanego użytkownika",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "role"
+                  ],
+                  "properties": {
+                    "role": {
+                      "enum": [
+                        "client",
+                        "operator"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/portal/sessions": {
+      "get": {
+        "summary": "Historia właściciela lub organizacji",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "has_more"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "session_id",
+                          "state",
+                          "started_at",
+                          "client_version",
+                          "client_id",
+                          "device_id",
+                          "device_method",
+                          "device_reason",
+                          "ip",
+                          "sync_ip",
+                          "ip_source"
+                        ],
+                        "properties": {
+                          "session_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "state": {
+                            "enum": [
+                              "open",
+                              "completed",
+                              "partial",
+                              "cancelled",
+                              "failed"
+                            ]
+                          },
+                          "started_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "client_version": {
+                            "type": "string"
+                          },
+                          "client_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "device_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "uuid"
+                          },
+                          "device_method": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "device_reason": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "ip": {
+                            "oneOf": [
+                              {
+                                "type": "string",
+                                "format": "ipv4"
+                              },
+                              {
+                                "type": "string",
+                                "format": "ipv6"
+                              }
+                            ]
+                          },
+                          "sync_ip": {
+                            "oneOf": [
+                              {
+                                "type": "string",
+                                "format": "ipv4"
+                              },
+                              {
+                                "type": "string",
+                                "format": "ipv6"
+                              }
+                            ]
+                          },
+                          "ip_source": {
+                            "enum": [
+                              "reservation",
+                              "sync"
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "has_more": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "schema": {
+              "enum": [
+                "open",
+                "completed",
+                "partial",
+                "cancelled",
+                "failed"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            }
+          },
+          {
+            "name": "ip",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "format": "ipv4"
+                },
+                {
+                  "type": "string",
+                  "format": "ipv6"
+                }
+              ]
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "device_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/portal/runs/{sid}": {
+      "post": {
+        "summary": "Rezerwacja pomiaru przez klienta",
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "session_id",
+                    "ticket",
+                    "profile",
+                    "node_id"
+                  ],
+                  "properties": {
+                    "session_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "ticket": {
+                      "type": "string"
+                    },
+                    "profile": {
+                      "type": "object"
+                    },
+                    "node_id": {
+                      "type": "string"
+                    },
+                    "observed_ip": {
+                      "oneOf": [
+                        {
+                          "type": "string",
+                          "format": "ipv4"
+                        },
+                        {
+                          "type": "string",
+                          "format": "ipv6"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "sid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "profile",
+            "in": "query",
+            "schema": {
+              "enum": [
+                "legacy",
+                "capacity"
+              ],
+              "default": "legacy"
+            }
+          }
+        ]
+      }
+    },
+    "/sessions/{session_id}/mtr": {
+      "get": {
+        "summary": "Surowe próbki MTR w zakresie właściciela sesji",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Próbki w kolejności przyjęcia",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "session_id",
+                    "items",
+                    "has_more"
+                  ],
+                  "properties": {
+                    "session_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "mtr-sample.schema.json"
+                      }
+                    },
+                    "has_more": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

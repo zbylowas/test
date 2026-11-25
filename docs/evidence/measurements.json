@@ -1,0 +1,17 @@
+{
+  "loopback": {
+    "runs": {
+      "parallel": {
+        "sha256": "7a312c7a36eb0846e64034e42c55c9262b22d8b72273025b5191fb9b1fc39e09",
+        "targets": {
+          "::1": {
+            "samples": 5
+          },
+          "127.0.0.1": {
+            "samples": 5
+          }
+        }
+      }
+    }
+  }
+}

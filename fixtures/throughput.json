@@ -1,0 +1,154 @@
+{
+  "schema_version": 1,
+  "session_id": "1d267ce1-5945-40d1-8f15-a9a7d486f62a",
+  "windows_version": "fixture",
+  "started_at": "2026-11-25T00:00:00Z",
+  "ended_at": "2026-11-25T00:00:01Z",
+  "node_id": "unit-test",
+  "peer": "192.0.2.15",
+  "profile": {
+    "bytes": 65536,
+    "rate_bps": 1000000,
+    "deadline_s": 20
+  },
+  "error": null,
+  "mtr": {
+    "attempts": 5,
+    "max_ttl": 8,
+    "timeout_ms": 200,
+    "interval_ms": 100,
+    "protocol": "icmp"
+  },
+  "phases": {
+    "baseline": [
+      {
+        "at": "2026-11-25T00:00:00Z",
+        "ms": 10,
+        "error": null
+      },
+      {
+        "at": "2026-11-25T00:00:00Z",
+        "ms": 10,
+        "error": null
+      },
+      {
+        "at": "2026-11-25T00:00:00Z",
+        "ms": 10,
+        "error": null
+      },
+      {
+        "at": "2026-11-25T00:00:00Z",
+        "ms": 10,
+        "error": null
+      },
+      {
+        "at": "2026-11-25T00:00:00Z",
+        "ms": 10,
+        "error": null
+      }
+    ],
+    "download": [
+      {
+        "at": "2026-11-25T00:00:00Z",
+        "ms": 35,
+        "error": null
+      },
+      {
+        "at": "2026-11-25T00:00:00Z",
+        "ms": 35,
+        "error": null
+      },
+      {
+        "at": "2026-11-25T00:00:00Z",
+        "ms": 35,
+        "error": null
+      },
+      {
+        "at": "2026-11-25T00:00:00Z",
+        "ms": 35,
+        "error": null
+      },
+      {
+        "at": "2026-11-25T00:00:00Z",
+        "ms": 35,
+        "error": null
+      }
+    ],
+    "upload": [
+      {
+        "at": "2026-11-25T00:00:00Z",
+        "ms": 15,
+        "error": null
+      },
+      {
+        "at": "2026-11-25T00:00:00Z",
+        "ms": 15,
+        "error": null
+      },
+      {
+        "at": "2026-11-25T00:00:00Z",
+        "ms": 15,
+        "error": null
+      },
+      {
+        "at": "2026-11-25T00:00:00Z",
+        "ms": 15,
+        "error": null
+      },
+      {
+        "at": "2026-11-25T00:00:00Z",
+        "ms": 15,
+        "error": null
+      }
+    ],
+    "recovery": [
+      {
+        "at": "2026-11-25T00:00:00Z",
+        "ms": 11,
+        "error": null
+      },
+      {
+        "at": "2026-11-25T00:00:00Z",
+        "ms": 11,
+        "error": null
+      },
+      {
+        "at": "2026-11-25T00:00:00Z",
+        "ms": 11,
+        "error": null
+      },
+      {
+        "at": "2026-11-25T00:00:00Z",
+        "ms": 11,
+        "error": null
+      },
+      {
+        "at": "2026-11-25T00:00:00Z",
+        "ms": 11,
+        "error": null
+      }
+    ]
+  },
+  "transfers": {
+    "download": {
+      "status": "ok",
+      "reason": null,
+      "started_at": "2026-11-25T00:00:00Z",
+      "ended_at": "2026-11-25T00:00:01Z",
+      "client_bytes": 65536,
+      "node_bytes": 65536,
+      "duration_ms": 1000,
+      "node_duration_ms": 980
+    },
+    "upload": {
+      "status": "ok",
+      "reason": null,
+      "started_at": "2026-11-25T00:00:00Z",
+      "ended_at": "2026-11-25T00:00:01Z",
+      "client_bytes": 65536,
+      "node_bytes": 65536,
+      "duration_ms": 1000,
+      "node_duration_ms": 980
+    }
+  }
+}

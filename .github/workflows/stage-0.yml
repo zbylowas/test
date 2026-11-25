@@ -1,0 +1,51 @@
+name: Windows and PostgreSQL acceptance
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Build web panels and verify Polish release copy
+        working-directory: frontend
+        run: |
+          npm install --global pnpm@11.25.0
+          pnpm install --frozen-lockfile
+          pnpm run build
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r scripts/requirements-v010-test.txt
+      - run: python -m unittest rules.test_mtr rules.test_v020 rules.test_throughput measurement-node.test_transfer contracts.test_contracts -v
+      - run: cmake -S client/windows -B build -A x64 -DVIPNET_ACCEPTANCE=ON
+      - run: cmake --build build --config Release
+      - run: .\build\Release\vipnet-chart-check.exe
+      - run: python scripts/verify_windows.py build/Release/vipnet-mtr.exe -v
+      - run: python scripts/verify_inventory.py build/Release/vipnet-mtr.exe .local/ci-inventory
+      - run: python scripts/verify_reverse.py build/Release/vipnet-mtr.exe .local/ci-reverse
+      - name: Verify native HTTPS, worker recovery and PostgreSQL restore
+        shell: pwsh
+        run: |
+          $pg = Get-ChildItem 'C:\Program Files\PostgreSQL' -Directory |
+            Where-Object { Test-Path (Join-Path $_.FullName 'bin\pg_restore.exe') } |
+            Sort-Object { [int]$_.Name } -Descending | Select-Object -First 1
+          if (-not $pg) { throw 'PostgreSQL binaries missing on the Windows runner' }
+          python scripts/accept_v010.py (Join-Path $pg.FullName bin) build/Release/vipnet-mtr.exe .local/ci-acceptance --disposable-runner
+
+      - name: Collect tested Windows release files
+        shell: pwsh
+        run: |
+          $folder = New-Item -ItemType Directory -Path out/windows-release -Force
+          Copy-Item build/Release/VIP-NET-Diagnostyka.exe,build/Release/vipnet-mtr.exe,LICENSE -Destination $folder
+          Copy-Item deploy/windows-portable.md (Join-Path $folder README.md)
+          Copy-Item build/_deps/nlohmann_json-src/LICENSE.MIT (Join-Path $folder nlohmann-json-LICENSE.txt)
+          Copy-Item build/_deps/zlib-src/LICENSE (Join-Path $folder zlib-LICENSE.txt)
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: windows-x64
+          path: out/windows-release/
+          if-no-files-found: error
