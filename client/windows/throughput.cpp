@@ -35,20 +35,14 @@ double ms(Clock::time_point start) {
     return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
 }
 
-std::string peer_ip(HINTERNET request) {
-    WINHTTP_CONNECTION_INFO info{};
-    info.cbSize = sizeof(info);
-    DWORD size = sizeof(info);
-    check(WinHttpQueryOption(request, WINHTTP_OPTION_CONNECTION_INFO, &info, &size));
-    auto &remote = info.RemoteAddress;
+std::string endpoint_ip(const SOCKADDR_STORAGE& endpoint) {
     char text[INET6_ADDRSTRLEN]{};
-    auto family = remote.ss_family;
-    require(family == AF_INET || family == AF_INET6, "unknown_peer_family");
+    auto family = endpoint.ss_family;
+    if (family != AF_INET && family != AF_INET6) return {};
     const void* addr = family == AF_INET ?
-        static_cast<const void*>(&reinterpret_cast<sockaddr_in*>(&remote)->sin_addr) :
-        static_cast<const void*>(&reinterpret_cast<sockaddr_in6*>(&remote)->sin6_addr);
-    require(InetNtopA(family, addr, text, sizeof(text)) != nullptr, "peer_address_unavailable");
-    return text;
+        static_cast<const void*>(&reinterpret_cast<const sockaddr_in*>(&endpoint)->sin_addr) :
+        static_cast<const void*>(&reinterpret_cast<const sockaddr_in6*>(&endpoint)->sin6_addr);
+    return InetNtopA(family, addr, text, sizeof(text)) ? text : "";
 }
 
 class Channel {
@@ -57,7 +51,7 @@ class Channel {
 public:
     std::string peer;
     Channel(const std::string& id, const std::wstring& origin)
-        : session_(handle(WinHttpOpen(L"VIP-NET transfer/0.5.2", WINHTTP_ACCESS_TYPE_NO_PROXY, nullptr, nullptr, 0))),
+        : session_(handle(WinHttpOpen(L"VIP-NET transfer/0.5.3", WINHTTP_ACCESS_TYPE_NO_PROXY, nullptr, nullptr, 0))),
           connection_(nullptr, WinHttpCloseHandle), base_(L"/measure/v1/runs/" + widen(id)) {
         URL_COMPONENTS url{};
         url.dwStructSize = sizeof(url);
@@ -93,12 +87,21 @@ public:
         return req;
     }
 
-    void receive(HINTERNET req, DWORD wanted) {
+    void receive(HINTERNET req, DWORD wanted, Json* local_ip = nullptr) {
         check(WinHttpReceiveResponse(req, nullptr));
         DWORD status{}, n = sizeof(status);
         check(WinHttpQueryHeaders(req, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, nullptr, &status, &n, nullptr));
         if (status != wanted) throw std::runtime_error("node_http_" + std::to_string(status));
-        auto address = peer_ip(req);
+        WINHTTP_CONNECTION_INFO info{};
+        info.cbSize = sizeof(info);
+        DWORD size = sizeof(info);
+        check(WinHttpQueryOption(req, WINHTTP_OPTION_CONNECTION_INFO, &info, &size));
+        if (local_ip) {
+            const auto local = endpoint_ip(info.LocalAddress);
+            *local_ip = local.empty() ? unavailable("local_endpoint_unknown") : available(local);
+        }
+        auto address = endpoint_ip(info.RemoteAddress);
+        require(!address.empty(), "peer_address_unavailable");
         if (peer.empty()) peer = address;
         require(address == peer, "node_address_changed");
     }
@@ -319,6 +322,7 @@ Json measure_throughput(Queue& queue, const std::string& id, const std::atomic_b
     const std::array<std::string,4> phases{"baseline","download","upload","recovery"};
     for (auto& name : phases) doc["phases"][name] = Json::array();
     if (doc["windows_version"] == "") doc["windows_version"] = "unavailable:RtlGetVersion";
+    doc["reservation_local_ip"] = unavailable("no_reservation");
     auto save = [&]{queue.save_throughput(id, doc.dump());};
     save();
     try {
@@ -327,7 +331,7 @@ Json measure_throughput(Queue& queue, const std::string& id, const std::atomic_b
         const bool portal = environment(L"VIPNET_PORTAL_RESERVATION") == L"1";
         auto reserve = control.send(L"POST", L"", environment(portal ? L"VIPNET_TOKEN" : L"VIPNET_NODE_TOKEN"), 0,
                                     portal ? L"/api/v1/portal/runs/" + widen(id) + L"?profile=capacity" : L"");
-        control.receive(reserve.get(), 201);
+        control.receive(reserve.get(), 201, &doc["reservation_local_ip"]);
         auto offer = Channel::json(reserve.get());
         std::string canonical = id;
         std::transform(canonical.begin(), canonical.end(), canonical.begin(), [](char c){return char(std::tolower(c));});

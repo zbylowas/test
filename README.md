@@ -1,6 +1,6 @@
 # VIP-NET Internet Diagnostics
 
-Aplikacja Windows mierzy pobieranie, wysyłanie i opóźnienie pod obciążeniem. W czasie testu pokazuje wykres Mb/s. Raport zawiera wynik każdego kierunku, statystyki opóźnienia i próbki MTR. Panel klienta i administratora umożliwia przeglądanie pomiarów po adresie IP i identyfikatorze instalacji Windows. [Pobieranie aplikacji](https://diagnostics.example.org/) · [Panel klienta](https://diagnostics.example.org/klient)
+Aplikacja Windows mierzy pobieranie, wysyłanie i opóźnienie pod obciążeniem. W czasie testu pokazuje wykres Mb/s. Raport pokazuje kartę używaną do rezerwacji HTTPS, obserwowanych sąsiadów ARP/IPv6, sygnał Wi-Fi, parametry komputera, wynik każdego kierunku, statystyki opóźnienia i próbki MTR. Panel klienta i administratora umożliwia przeglądanie pomiarów po adresie IP i identyfikatorze instalacji Windows. [Pobieranie aplikacji](https://diagnostics.example.org/) · [Panel klienta](https://diagnostics.example.org/klient)
 
 ## Kod i licencja
 
@@ -40,7 +40,7 @@ Testy sieciowe CI wykonują pomiary na loopback. Dane w docs/evidence tej edycji
 
 ## Code signing policy
 
-Wydanie 0.5.2 jest niepodpisane. Suma SHA-256 i bieżący status Authenticode są dostępne na stronie pobierania. Autorskie wydania przygotowuje vip-net.pl. Udział w programie SignPath Foundation wymaga odrębnej akceptacji fundacji i zweryfikowania pochodzenia pliku z publicznej budowy. [Metadane wydania](https://diagnostics.example.org/pobierz/windows-release.json) · [Zasady SignPath](https://signpath.org/terms)
+Wydanie 0.5.3 jest niepodpisane. Suma SHA-256 i bieżący status Authenticode są dostępne na stronie pobierania. Autorskie wydania przygotowuje vip-net.pl. Udział w programie SignPath Foundation wymaga odrębnej akceptacji fundacji i zweryfikowania pochodzenia pliku z publicznej budowy. [Metadane wydania](https://diagnostics.example.org/pobierz/windows-release.json) · [Zasady SignPath](https://signpath.org/terms)
 
 ## Dane pomiarowe
 

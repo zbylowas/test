@@ -18,6 +18,13 @@
     "mtr"
   ],
   "properties": {
+    "reservation_local_ip": {
+      "description": "Local endpoint of the HTTPS reservation connection, for matching the interface in the inventory snapshot.",
+      "oneOf": [
+        {"type":"object","additionalProperties":false,"required":["status","value"],"properties":{"status":{"const":"ok"},"value":{"type":"string","anyOf":[{"format":"ipv4"},{"format":"ipv6"}]}}},
+        {"type":"object","additionalProperties":false,"required":["status","reason"],"properties":{"status":{"const":"unavailable"},"reason":{"type":"string","minLength":1,"maxLength":160}}}
+      ]
+    },
     "schema_version": {
       "const": 1
     },

@@ -42,8 +42,8 @@ def public_notice(member):
 
 def package(exe, output, json_license, zlib_license, gui=None, web=None, require_signature=False):
     version = subprocess.check_output([exe, "--version"]).decode().strip()
-    if version != "0.5.2":
-        raise ValueError("the tested v0.5.2 executable is required")
+    if version != "0.5.3":
+        raise ValueError("the tested v0.5.3 executable is required")
     gui = gui or exe.with_name("VIP-NET-Diagnostyka.exe")
     web = web or ROOT / "frontend/dist"
     if not (web / "index.html").is_file() or not any((web / "assets").glob("*.js")):

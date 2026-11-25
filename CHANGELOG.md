@@ -1,5 +1,10 @@
 # Historia wydań
 
+## 0.5.3 · 25 listopada 2026
+
+- Okno Windows i oba panele pokazują połączenie używane przy rezerwacji HTTPS, sprzęt, karty i sygnał Wi-Fi. Raport podaje liczbę unikalnych sąsiadów widocznych dla Windows oraz osobno dla karty pomiarowej. Podczas pobierania i wysyłania wykres pokazuje bieżące Mb/s z liczników transferu.
+- Starsze zapisy nadal można odczytać. Jeżeli zapis nie zawiera lokalnego adresu rezerwacji, raport wskazuje brak tej informacji.
+
 ## 0.5.2 · 25 listopada 2026
 
 Pierwsza publiczna edycja całego projektu na licencji MIT. W aplikacji Windows wykres podczas testu pokazuje prędkość pobierania i wysyłania obliczoną z bieżących liczników WinHTTP. Raport zawiera potwierdzone liczniki węzła i próbki MTR. Portal pokazuje odpowiadające wersji EXE informacje o podpisie.

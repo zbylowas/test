@@ -1,10 +1,13 @@
 <script setup lang="ts">
+/// <reference types="vite/client" />
 import {ref, computed, onMounted} from 'vue'
+import InventoryReport, {type Inventory, type Reading} from './InventoryReport.vue'
+const showSources=import.meta.env.VITE_SOURCE_VISIBILITY!=='private'
 
 type Session = {session_id:string; started_at:string; state:string; client_version:string;ip:string;sync_ip:string;ip_source:'reservation'|'sync';client_id:string;device_id:string|null;device_method:string|null;device_reason:string|null}
 type Direction = {goodput_mbps:number|null; bufferbloat:string; median_increase_ms:number|null}
 type Phase = {median_ms:number|null;p95_ms:number|null;sent:number;received:number}
-type Transfer = {interpretation:{directions:Record<string,Direction>; phases:Record<string,Phase>}; throughput:{error:string|null;windows_version:string;node_id:string|null;profile:{rate_bps:number;streams?:number;window_ms?:number}|null}}
+type Transfer = {interpretation:{directions:Record<string,Direction>; phases:Record<string,Phase>}; throughput:{reservation_local_ip?:Reading<string>;error:string|null;windows_version:string;node_id:string|null;profile:{rate_bps:number;streams?:number;window_ms?:number}|null}}
 type Hop = {snt:number;rcv:number;responders:string[];loss_pct:number|null;p50:number|null;p95:number|null}
 type Analysis = {result:{sample_count:number; series:{target:string;protocol:string;phase:string;stats:Record<string,Hop>}[];findings:{limitations:string;recommended_tests:string[]}[]}}
 const admin=location.pathname==='/admin', landing=location.pathname==='/'
@@ -23,7 +26,7 @@ onMounted(async()=>{
 const access=ref(''), logged=ref(false), error=ref(''), busy=ref(false)
 const sessions=ref<Session[]>([]), filter=ref(''), offset=ref(0), more=ref(false)
 const selected=ref<Session|null>(null), transfer=ref<Transfer|null>(null), analysis=ref<Analysis|null>(null)
-const inventory=ref<unknown>(null), loadingReport=ref(false), reportError=ref('')
+const inventory=ref<Inventory|null>(null), loadingReport=ref(false), reportError=ref('')
 const searchIp=ref(''), searchDevice=ref(''), searchOwner=ref('')
 type Sample = {phase:string;ttl:number;attempt:number;responder:string|null;rtt_ms:number|null;status:string}
 const raw=ref<Sample[]>([]), rawOffset=ref(0), rawMore=ref(false), rawBusy=ref(false), rawError=ref('')
@@ -71,7 +74,7 @@ async function open(row:Session){
  transfer.value=null;analysis.value=null;inventory.value=null
  try{
   const base='sessions/'+encodeURIComponent(row.session_id)+'/'
-  const [t,a,i]=await Promise.all([api(base+'throughput',true),api(base+'analysis',true),admin?api(base+'inventory',true):null])
+  const [t,a,i]=await Promise.all([api(base+'throughput',true),api(base+'analysis',true),api(base+'inventory',true)])
   if(current===serial){transfer.value=t;analysis.value=a;inventory.value=i}
  }catch(e){if(current===serial)reportError.value=(e as Error).message}
  finally{if(current===serial)loadingReport.value=false}
@@ -102,7 +105,7 @@ function printReport(){window.print()}
 <header><div class="bar"><a class="brand" href="/"><span class="mark" aria-hidden="true">▥</span> VIP-NET</a><nav aria-label="Panele"><a href="/klient" :aria-current="!landing&&!admin?'page':undefined">Panel klienta</a><a href="/admin" :aria-current="admin?'page':undefined">Administracja</a></nav></div></header>
 <main>
 <template v-if="landing">
-<section class="hero"><div><p class="eyebrow">Diagnostyka łącza</p><h1>Sprawdź swoje<br>połączenie.</h1><p class="lead">Zmierz pobieranie, wysyłanie i opóźnienie pod obciążeniem. Wynik zobaczysz od razu w aplikacji.</p><a class="button" href="/pobierz/VIP-NET-Diagnostyka.exe" download>↓ &nbsp; Pobierz aplikację</a><small>Windows 10 i 11 · x64 · wersja testowa 0.5.2</small><small>{{publisher}} <a href="/pobierz/VIP-NET-Diagnostyka.exe.sha256">Suma kontrolna SHA-256</a> · <a href="https://github.com/zbylowas/test">Kod źródłowy (MIT)</a> · <a href="https://github.com/zbylowas/test#code-signing-policy">Code signing policy</a></small></div>
+<section class="hero"><div><p class="eyebrow">Diagnostyka łącza</p><h1>Sprawdź swoje<br>połączenie.</h1><p class="lead">Zmierz pobieranie, wysyłanie i opóźnienie pod obciążeniem. Wynik zobaczysz od razu w aplikacji.</p><a class="button" href="/pobierz/VIP-NET-Diagnostyka.exe" download>↓ &nbsp; Pobierz aplikację</a><small>Windows 10 i 11 · x64 · wersja testowa 0.5.3</small><small>{{publisher}} <a href="/pobierz/VIP-NET-Diagnostyka.exe.sha256">Suma kontrolna SHA-256</a><template v-if="showSources"> · <a href="https://github.com/zbylowas/test">Kod źródłowy (MIT)</a> · <a href="https://github.com/zbylowas/test#code-signing-policy">Zasady podpisywania aplikacji</a></template></small></div>
 <aside class="guide"><h2>Jak wykonać pomiar</h2><ol><li>Pobierz i otwórz <strong>VIP-NET-Diagnostyka.exe</strong>.</li><li>Kliknij <strong>Wykonaj test</strong> i poczekaj na raport.</li><li>Aby wrócić do wyników w przeglądarce, wybierz <strong>Kopiuj kod do panelu</strong> w aplikacji.</li></ol><a href="/klient">Otwórz historię pomiarów →</a></aside></section>
 </template>
 <template v-else-if="!logged">
@@ -132,8 +135,10 @@ function printReport(){window.print()}
 <p v-if="rawError" role="alert">{{rawError}}</p><p v-else-if="rawBusy">Pobieranie próbek…</p><p v-else-if="!raw.length">Brak zapisanych próbek.</p>
 <div v-if="raw.length" class="scroll"><table><thead><tr><th>Faza</th><th>Próba / skok</th><th>Router</th><th>RTT</th><th>Status</th></tr></thead><tbody><tr v-for="(s,i) in raw" :key="i"><td>{{names[s.phase]||s.phase}}</td><td>{{s.attempt}} / {{s.ttl}}</td><td>{{s.responder||'—'}}</td><td>{{number(s.rtt_ms)}} ms</td><td>{{s.status}}</td></tr></tbody></table></div>
 <div class="pager" v-if="rawOffset||rawMore"><button class="quiet" :disabled="!rawOffset||rawBusy" @click="loadRaw(rawOffset-64)">Poprzednie próbki</button><button class="quiet" :disabled="!rawMore||rawBusy" @click="loadRaw(rawOffset+64)">Następne próbki</button></div></details>
-<details v-if="admin && inventory"><summary>Komputer, LAN i Wi-Fi</summary><pre>{{JSON.stringify(inventory,null,2)}}</pre></details>
+<InventoryReport v-if="inventory" :inventory="inventory" :endpoint="transfer?.throughput.reservation_local_ip" />
+<p v-else>Brak inwentaryzacji komputera i sieci w tej sesji.</p>
+<details v-if="admin && inventory"><summary>Surowa inwentaryzacja Windows</summary><pre>{{JSON.stringify(inventory,null,2)}}</pre></details>
 <div class="actions"><button class="quiet" @click="printReport">Drukuj / zapisz PDF</button><button class="quiet" @click="exportJson">Pobierz raport JSON</button></div>
 </template></article>
-</template></main><footer><span>VIP-NET Internet Diagnostics</span><span>Wersja 0.5.2</span></footer>
+</template></main><footer><span>VIP-NET Internet Diagnostics</span><span>Wersja 0.5.3</span></footer>
 </template>

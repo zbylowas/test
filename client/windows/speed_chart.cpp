@@ -67,6 +67,7 @@ void SpeedChart::paint(HDC dc, RECT bounds, HFONT normal, HFONT heading, bool up
     ceiling=std::ceil(ceiling/magnitude)*magnitude;
     auto scale=std::to_wstring(static_cast<unsigned long long>(ceiling))+L" Mb/s";
     RECT axis{left,2,right,25};
+    DrawTextW(frame,L"Ostatnie 6 s",-1,&axis,DT_LEFT|DT_SINGLELINE|DT_NOPREFIX);
     DrawTextW(frame,scale.c_str(),-1,&axis,DT_RIGHT|DT_SINGLELINE|DT_NOPREFIX);
     const auto old_pen=SelectObject(frame,GetStockObject(DC_PEN));
     SetDCPenColor(frame,GetSysColor(COLOR_3DSHADOW));
@@ -87,6 +88,12 @@ void SpeedChart::paint(HDC dc, RECT bounds, HFONT normal, HFONT heading, bool up
                 int y=bottom-static_cast<int>((bottom-top)*p.mbps/ceiling);
                 if (first) { MoveToEx(frame,x,y,nullptr); first=false; }
                 LineTo(frame,x,y);
+                if (&p == &points_.back()) {
+                    const auto old_brush=SelectObject(frame,GetStockObject(DC_BRUSH));
+                    SetDCBrushColor(frame,color);
+                    Ellipse(frame,x-4,y-4,x+5,y+5);
+                    SelectObject(frame,old_brush);
+                }
             }
             SelectObject(frame,old_pen);
             DeleteObject(stroke);

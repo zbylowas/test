@@ -22,6 +22,17 @@ def validator(name):
 
 
 class ContractTests(unittest.TestCase):
+    def test_reservation_endpoint_and_legacy_transfer(self):
+        doc = read(BASE.parents[1] / "fixtures/throughput.json")
+        schema = validator("throughput.schema.json")
+        schema.validate(doc)
+        for value in ("192.0.2.3", "2001:db8::1"):
+            schema.validate(doc | {"reservation_local_ip": {"status": "ok", "value": value}})
+        schema.validate(doc | {"reservation_local_ip": {"status": "unavailable", "reason": "no_reservation"}})
+        for invalid in ({"status": "unavailable"}, {"status": "ok", "value": "eth0"}):
+            with self.assertRaises(ValidationError):
+                schema.validate(doc | {"reservation_local_ip": invalid})
+
     def test_inventory_privacy_and_partial_tables(self):
         doc = read(BASE.parents[1] / "fixtures/inventory-unavailable.json")
         schema = validator("inventory.schema.json")

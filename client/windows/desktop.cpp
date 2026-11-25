@@ -1,5 +1,6 @@
 #include "throughput.hpp"
 #include "speed_chart.hpp"
+#include "inventory_report.hpp"
 #include "queue.hpp"
 #include <wincred.h>
 #include <wincrypt.h>
@@ -124,12 +125,17 @@ std::wstring render(const Json& data) {
             << L"   ·   okno: " << profile["window_ms"].get<int>()/1000.0 << L" s";
         out << L"\r\n";
     }
-    out << L"\r\nOpóźnienie HTTPS · mediana\r\n";
+    out << L"\r\n" << wide(inventory_report(data.value("inventory",Json{}),doc));
+    out << L"\r\nJakość połączenia · opóźnienie HTTPS i poprawne odpowiedzi\r\n";
     for (size_t i=0;i<4;++i) {
         auto val=median(doc["phases"][phases[i]]);
         out << labels[i] << L"   ";
         if(val) out << *val << L" ms"; else out << L"za mało poprawnych próbek";
-        out << L"\r\n";
+        const auto& probes = doc["phases"][phases[i]];
+        const auto good = std::count_if(probes.begin(),probes.end(),[](const Json& probe) {
+            return probe.at("error").is_null() && probe.at("ms").is_number();
+        });
+        out << L"   ·   odpowiedzi " << good << L" / " << probes.size() << L"\r\n";
     }
     out << L"\r\nSesja   " << wide(doc.at("session_id")) << L"\r\nPoczątek UTC   " << wide(doc.at("started_at"))
         << L"\r\nSystem   " << wide(doc.at("windows_version")) << L"   ·   VIP-NET " << wide(data.value("version",std::string("0.5.0")));
@@ -241,7 +247,7 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
         normal_font=CreateFontW(-17,0,0,0,FW_NORMAL,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");
         heading_font=CreateFontW(-30,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");
         heading=control(w,L"STATIC",L"Diagnostyka internetu",0,0,heading_font);
-        intro=control(w,L"STATIC",L"Wynik, trasa MTR, adres IP i identyfikator komputera zostaną zapisane w panelach klienta i administratora VIP-NET.",0,0,normal_font);
+        intro=control(w,L"STATIC",L"Sprawdź prędkość, opóźnienie, Wi-Fi i sieć lokalną. Raport z danymi komputera i trasą MTR trafi do Twojej historii w VIP-NET.",0,0,normal_font);
         start_button=control(w,L"BUTTON",L"Wykonaj test",WS_TABSTOP|BS_DEFPUSHBUTTON,start_id,normal_font);
         stop_button=control(w,L"BUTTON",L"Zatrzymaj",WS_TABSTOP,stop_id,normal_font);
         copy_button=control(w,L"BUTTON",L"Kopiuj kod do panelu",WS_TABSTOP,copy_id,normal_font);
