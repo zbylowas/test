@@ -644,6 +644,7 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
         }
         if(id==action_id && route_mode){cancelled=true;view.route_status(L"Zatrzymywanie i zapis próbek…");return 0;}
         if(id==action_id && !route_mode){launch_route(w);return 0;}
+        if(id==archive_id && !busy && !loading && (view.page()==9 || view.page()==10)){open_archive(w);return 0;}
         if(id==compare_id && !busy){compare_route(w);return 0;}
         if(id==export_id && !busy){export_page(w);return 0;}
         if(view.page()==6 && !route_mode && HIWORD(a)==CBN_SELCHANGE){
@@ -760,6 +761,11 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,PWSTR,int show) {
     }
     ShowWindow(w,show);UpdateWindow(w);
     MSG msg{};while(GetMessageW(&msg,nullptr,0,0)>0) {
+        if(msg.message==WM_KEYDOWN && msg.wParam==VK_RETURN && msg.hwnd==GetDlgItem(w,list_id) &&
+           (view.page()==9 || view.page()==10) && IsWindowVisible(GetDlgItem(w,archive_id))){
+            SendMessageW(w,WM_COMMAND,MAKEWPARAM(archive_id,BN_CLICKED),reinterpret_cast<LPARAM>(GetDlgItem(w,archive_id)));
+            continue;
+        }
         if(!IsDialogMessageW(w,&msg)){TranslateMessage(&msg);DispatchMessageW(&msg);}
     }
     return static_cast<int>(msg.wParam);

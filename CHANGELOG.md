@@ -1,5 +1,9 @@
 # Historia wydań
 
+## 0.7.2 · historia
+
+- Zaznaczoną sesję można otworzyć klawiszem Enter, dwuklikiem lub przyciskiem „Otwórz raport”.
+
 ## 0.7.1 · Windows, MTR i gry
 
 - Jedenaście szczegółowych widoków ze wspólną nawigacją, tabele, wykresy i historia.

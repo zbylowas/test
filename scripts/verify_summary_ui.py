@@ -1,6 +1,8 @@
 """Exercise the portable window without a server. Only a reserved loopback port is used."""
 import ctypes
 from ctypes import wintypes
+import hashlib
+import json
 import os
 from pathlib import Path
 import socket
@@ -77,6 +79,64 @@ def preserve_placement():
                 except FileNotFoundError:
                     pass
 
+def verify_archive(exe, origin, tmp):
+    class Credential(ctypes.Structure):
+        _fields_ = [("Flags",wintypes.DWORD),("Type",wintypes.DWORD),("TargetName",wintypes.LPWSTR),
+                    ("Comment",wintypes.LPWSTR),("LastWritten",wintypes.FILETIME),("Size",wintypes.DWORD),
+                    ("Blob",ctypes.c_void_p),("Persist",wintypes.DWORD),("Count",wintypes.DWORD),
+                    ("Attributes",ctypes.c_void_p),("Alias",wintypes.LPWSTR),("UserName",wintypes.LPWSTR)]
+
+    token = os.urandom(24).hex()
+    origin += "/"  # Distinct Credential Manager target for the archive-only fixture.
+    name = "VIP-NET/Diagnostics/" + origin
+    cred = Credential()
+    cred.Type, cred.TargetName, cred.Persist = 1, name, 1
+    encoded = token.encode("utf-16-le")
+    buf = ctypes.create_string_buffer(encoded)
+    cred.Blob, cred.Size = ctypes.addressof(buf), len(encoded)
+    store = ctypes.windll.advapi32
+    # Never touch an existing Windows credential.
+    existing = ctypes.c_void_p()
+    if store.CredReadW(name, 1, 0, ctypes.byref(existing)):
+        store.CredFree(existing)
+        raise RuntimeError("Unexpected credential for ephemeral loopback URL")
+    assert store.CredWriteW(ctypes.byref(cred), 0)
+    try:
+        key = hashlib.sha256((origin+"\n"+token).encode("utf-16-le")).hexdigest()
+        archive = Path(tmp)/"VIP-NET"/"Diagnostyka"/key/"reports"
+        archive.mkdir(parents=True)
+        sid = "d165e424-71e1-4ef6-a853-6cc830238ae2"
+        params = {"purpose":"mtr","profile_name":"MTR","target_name":"192.0.2.1"}
+        doc = {"session_id":sid,"started_at":"2026-01-12T12:00:00Z","state":"cancelled",
+               "measurement":params,"mtr_samples":[],"synchronized":False}
+        (archive/(sid+".json")).write_text(json.dumps(doc),encoding="utf-8")
+        env = dict(os.environ, VIPNET_DESKTOP_ORIGIN=origin, LOCALAPPDATA=tmp)
+        process = subprocess.Popen([str(exe)],env=env)
+        win = None
+        try:
+            win = wait(lambda: find_window(process.pid))
+            get = lambda i: user.GetDlgItem(win,i)
+            click = lambda i: user.SendMessageW(get(i),0x00F5,0,0)
+            wait(lambda: user.IsWindowEnabled(get(101)))
+            for keyboard in (True,False):
+                click(209)
+                assert user.SendMessageW(get(310),0x1004,0,0)==1 and user.IsWindowEnabled(get(330))
+                if keyboard:
+                    user.SendMessageW(win,0x0028,get(310),1)
+                    user.PostMessageW(get(310),0x0100,13,0)
+                else:
+                    click(330)
+                wait(lambda: user.IsWindowVisible(get(315)))
+                click(105)
+                assert "192.0.2.1" in caption(get(112))
+                click(108)
+        finally:
+            if win: user.PostMessageW(win,0x0010,0,0)
+            process.wait(timeout=30)
+    finally:
+        assert store.CredDeleteW(name,1,0)
+
+
 def run(exe):
     with preserve_placement(), tempfile.TemporaryDirectory() as tmp, socket.socket() as reserved:
         reserved.bind(("127.0.0.1", 0))
@@ -141,7 +201,8 @@ def run(exe):
                 user.PostMessageW(win, 0x0010, 0, 0)
             process.wait(timeout=50)
             assert process.returncode == 0
-    print("Native summary, three window sizes, collapsed rail, settings, profile, offline and report passed")
+        verify_archive(exe,origin,tmp)
+    print("Native summary, keyboard archive and open button, three window sizes, collapsed rail, settings, profile, offline and report passed")
 
 
 if __name__ == "__main__":

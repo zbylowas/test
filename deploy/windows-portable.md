@@ -1,4 +1,4 @@
-# NetDiagnostics 0.7.1 · Windows x64
+# NetDiagnostics 0.7.2 · Windows x64
 
 Uruchom EXE i wybierz **Rozpocznij test**. Profil **Pełna prędkość** korzysta z ustawień przepustowości kontrolowanego węzła. **Mały transfer** używa ustalonej porcji danych. **Pełny raport** otwiera objaśnienie, a **Dane techniczne** pokazują między innymi kartę, adresy IPv4 i IPv6 oraz MTR. Kod w widoku raportu lub historii umożliwia zalogowanie do panelu klienta. System przechowuje go w Menedżerze poświadczeń.
 

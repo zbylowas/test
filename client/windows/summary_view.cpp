@@ -114,7 +114,7 @@ void View::create(HWND parent,std::wstring origin,std::wstring brand) {
     favorite_=button(L"Zapisz cel",favorite_id);saved_=combo(saved_id,L"Ulubione cele");
     choices(limit_id,{L"8 skoków",L"16 skoków",L"32 skoki"},1);
     choices(interval_id,{L"100 ms",L"500 ms",L"1000 ms"},0);
-    compare_=button(L"Porównaj trasę",compare_id);action_=button(L"Wykonaj test",action_id);export_=button(L"Eksportuj…",export_id);
+    archive_=button(L"Otwórz raport",archive_id);compare_=button(L"Porównaj trasę",compare_id);action_=button(L"Wykonaj test",action_id);export_=button(L"Eksportuj…",export_id);
     scale(GetDpiForWindow(parent)); update(read(nullptr));
 }
 void View::scale(UINT dpi) {
@@ -215,6 +215,8 @@ void View::layout() {
     if(cards)top+=small?58:74;
     move(table_,x,top,area,footer_y-top-panel_h-14,workspace_);
     move(graph_,x,footer_y-panel_h-6,area,panel_h,workspace_);
+    move(archive_,x+area-264,footer_y,132,32,workspace_ && (page_==9 || page_==10));
+    EnableWindow(archive_,!busy_ && !table_data_.rows.empty());
     move(compare_,x+area-264,footer_y,132,32,mtr && !busy_);
     move(export_,x+area-124,footer_y,124,32,workspace_);
     move(copy_,x,height-bar-46,180,32,!home_page);

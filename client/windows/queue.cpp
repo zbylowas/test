@@ -188,7 +188,7 @@ std::string Queue::begin(const std::string& id, const std::string& measurement) 
     if (lock.value == INVALID_HANDLE_VALUE) throw std::runtime_error("recording already exists");
     const auto device = device_identity(*this).dump();
     auto body = "{\"schema_version\":1,\"device\":" + device + ",\"session_id\":\"" + id + "\",\"started_at\":\"" + utc_now()
-        + "\",\"client_version\":\"0.7.1\",\"mode\":\"portable\""
+        + "\",\"client_version\":\"0.7.2\",\"mode\":\"portable\""
         + (measurement.empty() ? std::string{} : ",\"measurement\":" + measurement) + "}";
     update(db_, "INSERT INTO session(id,opening) VALUES (?,?)", {id, body});
     recording_ = lock.value;
