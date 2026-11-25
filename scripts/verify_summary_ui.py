@@ -117,10 +117,15 @@ def verify_archive(exe, origin, tmp):
             win = wait(lambda: find_window(process.pid))
             get = lambda i: user.GetDlgItem(win,i)
             click = lambda i: user.SendMessageW(get(i),0x00F5,0,0)
-            wait(lambda: user.IsWindowEnabled(get(101)))
+            # Creation exposes the HWND before the asynchronous credential/report restore completes.
+            # A usable client-code control specifically acknowledges the seeded credential.
+            wait(lambda: user.IsWindowVisible(win) and user.IsWindowEnabled(get(209))
+                 and user.IsWindowEnabled(get(102)))
             for keyboard in (True,False):
-                click(209)
-                assert user.SendMessageW(get(310),0x1004,0,0)==1 and user.IsWindowEnabled(get(330))
+                # Navigation is setup; exercise the actual Enter and button activation below.
+                user.SendMessageW(win, 0x0111, 209, get(209))
+                wait(lambda: user.IsWindowVisible(get(310)) and user.SendMessageW(get(310),0x1004,0,0)==1
+                     and user.IsWindowEnabled(get(330)))
                 if keyboard:
                     user.SendMessageW(win,0x0028,get(310),1)
                     user.PostMessageW(get(310),0x0100,13,0)
