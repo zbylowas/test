@@ -37,3 +37,5 @@ Program zachowuje ostatni raport i archiwum JSON w podkatalogu `reports` profilu
 Przy otwarciu aplikacja pobiera mały opis wydania przez HTTPS. Gdy pojawi się nowa wersja, otwórz Ustawienia i wybierz **Zainstaluj aktualizację**. Po sprawdzeniu pliku wybierz **Zamknij i zastosuj**. Instalator czeka na zakończenie procesu i wymienia EXE. Otwórz ponownie ten sam plik. Potrzebujesz prawa zapisu w jego folderze oraz systemu plików Windows obsługującego atomową wymianę i strumień strefy Internet. Komunikat w Ustawieniach informuje o powodzeniu lub przyczynie błędu. W wersji 0.7.3 i wcześniejszych pobierz nowe EXE ze strony dystrybucji.
 
 Wydawca podpisuje numer wersji, platformę, rozmiar i skrót SHA-256 manifestu. Klient akceptuje tylko zgodny podpis przypiętym publicznym kluczem i nowszą wersję. Folder zapisu, nazwa aplikacji i adres pobierania wynikają z uruchomionej kopii programu oraz jego kanału HTTPS. Wydanie stagingowe zawiera samodzielnie wystawiony podpis Authenticode projektu. Publiczny łańcuch zaufania wydawcy wymaga odrębnej weryfikacji.
+
+Twórca projektu to **vip-net.pl**. [Code signing policy](https://github.com/zbylowas/test#code-signing-policy)

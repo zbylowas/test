@@ -1,10 +1,21 @@
 name: Windows and PostgreSQL acceptance
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      sign_windows:
+        description: Submit the tested Windows build to SignPath
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
   verify:
     runs-on: windows-2022
+    outputs:
+      windows-artifact: ${{ steps.windows-artifact.outputs.artifact-id }}
+      windows-version: ${{ steps.windows-version.outputs.version }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: actions/setup-node@v4
@@ -24,6 +35,7 @@ jobs:
       - run: cmake -S client/windows -B build -A x64 -DVIPNET_ACCEPTANCE=ON
       - run: cmake --build build --config Release
       - name: Verify Windows product metadata
+        id: windows-version
         shell: pwsh
         run: |
           $version = & ./build/Release/vipnet-mtr.exe --version
@@ -33,6 +45,7 @@ jobs:
               throw "Unexpected product metadata in $($binary.Name)"
             }
           }
+          "version=$version" >> $env:GITHUB_OUTPUT
       - run: .\build\Release\vipnet-update-check.exe
       - run: .\build\Release\vipnet-route-check.exe
       - run: .\build\Release\vipnet-summary-check.exe
@@ -62,7 +75,64 @@ jobs:
           Copy-Item build/_deps/nlohmann_json-src/LICENSE.MIT (Join-Path $folder nlohmann-json-LICENSE.txt)
           Copy-Item build/_deps/zlib-src/LICENSE (Join-Path $folder zlib-LICENSE.txt)
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        id: windows-artifact
         with:
           name: windows-x64
           path: out/windows-release/
+          if-no-files-found: error
+
+  sign-windows:
+    if: github.event_name == 'workflow_dispatch' && inputs.sign_windows && github.repository == 'zbylowas/test' && github.ref == 'refs/heads/main'
+    needs: verify
+    runs-on: windows-2022
+    timeout-minutes: 135
+    environment: signpath-release
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Check signing configuration
+        shell: pwsh
+        env:
+          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          SIGNPATH_ARTIFACT_CONFIGURATION_SLUG: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+          SIGNPATH_PUBLISHER_SHA256: ${{ vars.SIGNPATH_PUBLISHER_SHA256 }}
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+        run: |
+          foreach ($name in 'SIGNPATH_ORGANIZATION_ID','SIGNPATH_PROJECT_SLUG','SIGNPATH_SIGNING_POLICY_SLUG','SIGNPATH_ARTIFACT_CONFIGURATION_SLUG','SIGNPATH_API_TOKEN') {
+            if (-not [Environment]::GetEnvironmentVariable($name)) {
+              throw "Missing configuration for $name in signpath-release"
+            }
+          }
+          if ($env:SIGNPATH_PUBLISHER_SHA256 -notmatch '^[0-9a-fA-F]{64}$') {
+            throw 'Set SIGNPATH_PUBLISHER_SHA256 to the SHA-256 of the approved publisher certificate'
+          }
+      - name: Sign the artifact from this workflow run
+        uses: SignPath/github-action-submit-signing-request@a2c5b60d9c75f073142b653c354b632eedce097b # v3.2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ needs.verify.outputs.windows-artifact }}
+          parameters: 'version: "${{ needs.verify.outputs.windows-version }}"'
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 7200
+          output-artifact-directory: out/windows-signed
+      - name: Verify the publisher, timestamp and Windows product metadata
+        shell: pwsh
+        env:
+          PUBLISHER_SHA256: ${{ vars.SIGNPATH_PUBLISHER_SHA256 }}
+          BUILD_VERSION: ${{ needs.verify.outputs.windows-version }}
+        run: ./scripts/verify_signed_windows.ps1 -Directory out/windows-signed -PublisherSha256 $env:PUBLISHER_SHA256 -Version $env:BUILD_VERSION
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: windows-x64-signed
+          path: out/windows-signed/
           if-no-files-found: error

@@ -44,9 +44,11 @@ Testy sieciowe CI wykonują pomiary na loopback. Dane w docs/evidence tej edycji
 
 ## Code signing policy
 
-Dystrybutor może podpisywać pliki Windows oraz manifest aktualizacji własnym certyfikatem. Kompilacja ze źródeł obsługuje podpisane aktualizacje, gdy dystrybutor udostępni swój certyfikat publiczny w lokalnym pliku `client/windows/project-signer.b64` przed kompilacją. Jest to certyfikat DER zakodowany w Base64. Klucz prywatny pozostaje w magazynie wydawcy. [Zasady SignPath](https://signpath.org/terms)
+Dystrybutor może podpisywać pliki Windows oraz manifest aktualizacji własnym certyfikatem. Kompilacja ze źródeł obsługuje podpisane aktualizacje, gdy dystrybutor udostępni swój certyfikat publiczny w lokalnym pliku `client/windows/project-signer.b64` przed kompilacją. Jest to certyfikat DER zakodowany w Base64. Klucz prywatny pozostaje w magazynie wydawcy. [Wdrażanie podpisu SignPath i role zespołu](deploy/signpath.md) · [Dane pomiarowe](#dane-pomiarowe)
 
 ## Dane pomiarowe
+
+Jeśli użytkownik lub dystrybutor ustawi adres serwera, aplikacja może przy starcie pobrać opis dostępnego wydania. Przed wysłaniem pomiarów użytkownik uruchamia test. Aplikacja przenośna działa bez instalatora. Jej pliki można usunąć po zamknięciu.
 
 Po wybraniu **Wykonaj test** aplikacja okienkowa łączy się z wybranym serwerem HTTPS. W kompilacji ze źródeł adres odbiorcy podaje dystrybutor lub użytkownik. Program przesyła wyniki transferu i opóźnienia, odpowiedzi routerów, informacje o systemie, interfejsach, trasach i dostępnych parametrach Wi-Fi. Serwer zapisuje adres IP połączenia i pseudonim instalacji Windows. Wyniki są dostępne dla właściciela kodu klienta i uprawnionego operatora organizacji. Kolejka SQLite zachowuje oczekujące oraz częściowe wyniki. Kod klienta znajduje się w Menedżerze poświadczeń Windows. Zachowaj go dla siebie.
 

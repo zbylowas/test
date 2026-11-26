@@ -1,5 +1,9 @@
 # Historia wydań
 
+## Przygotowanie podpisu Authenticode · 2026-11-26
+
+- Ręczna budowa publicznej gałęzi main po testach może przekazać oba EXE do SignPath. Użycie wymaga aktywnej organizacji, polityki podpisu i ręcznej akceptacji żądania. Workflow sprawdza certyfikat, znacznik czasu i metadane przed udostępnieniem artefaktu.
+
 ## Publikacja źródeł · 2026-11-26
 
 - W README, licencji i metadanych kompilacji Windows wskazano vip-net.pl jako twórcę projektu.
