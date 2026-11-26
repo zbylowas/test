@@ -1,5 +1,10 @@
 # Historia wydań
 
+## 1.0.1 · 2026-11-26
+
+- Historia rozpoznaje przerwanie także w starszych raportach zatrzymanych podczas pingów. Nowe raporty lokalne zachowują stan zapisany przez kolejkę.
+- Widok Komputer udostępnia skrót do Monitora zasobów Windows. W oknie szczegółów można przechodzić między polem tekstowym i przyciskami klawiszem Tab.
+
 ## 1.0.0 · 2026-11-26
 
 - Kafle Podsumowania otwierają duże, skalowalne okno ze wskazaną wartością i przyciskiem kopiowania. W widokach szczegółowych można kopiować wybrany wiersz, również przez Ctrl+C.

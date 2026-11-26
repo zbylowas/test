@@ -85,8 +85,8 @@ def _package_snapshot(exe, gui, output, json_license, zlib_license, web, require
             "(Get-Item -LiteralPath $env:VIPNET_RELEASE_FILE).VersionInfo.ProductVersion"],
             env=dict(os.environ, VIPNET_RELEASE_FILE=str(path)), text=True).strip()
     version = pe_version(exe)
-    if version != "1.0.0":
-        raise ValueError("the tested v1.0.0 executable is required")
+    if version != "1.0.1":
+        raise ValueError("the tested v1.0.1 executable is required")
     web = web or ROOT / "frontend/dist"
     if not (web / "index.html").is_file() or not any((web / "assets").glob("*.js")):
         raise ValueError("build the portal with pnpm run build first")

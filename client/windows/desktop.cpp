@@ -9,6 +9,7 @@
 #include "reader_report.hpp"
 #include "queue.hpp"
 #include <wincred.h>
+#include <shellapi.h>
 #include <tlhelp32.h>
 #include <commdlg.h>
 #include <wincrypt.h>
@@ -289,6 +290,11 @@ LRESULT CALLBACK details_dispatch(HWND w, UINT message, WPARAM wp, LPARAM lp) {
         MoveWindow(GetDlgItem(w,details_text_id),gap,gap,std::max(1,width-2*gap),std::max(1,height-row-3*gap),TRUE);
         MoveWindow(GetDlgItem(w,details_copy_id),gap,height-gap-row,button,row,TRUE);
         MoveWindow(GetDlgItem(w,details_close_id),width-gap-button,height-gap-row,button,row,TRUE);
+        return 0;
+    }
+    case WM_NEXTDLGCTL: {
+        auto next=lp?reinterpret_cast<HWND>(wp):GetNextDlgTabItem(w,GetFocus(),wp!=0);
+        if(next && IsChild(w,next))SetFocus(next);
         return 0;
     }
     case WM_COMMAND:
@@ -633,9 +639,15 @@ void navigate(HWND w,int page){
                 const auto& m=field(doc,"measurement");std::wstring kind=L"Pełny test";if(m.is_object())kind=wide(m.value("profile_name",m.value("purpose","")));
                 DetailRow row;
                 row.cells={wide(t.value("started_at","")),kind,wide(id)};
-                auto completed=field(doc,"state")=="completed" || (doc.contains("throughput") && field(t,"error").is_null());
                 if(history){
-                    auto state=completed?L"Zakończono":field(doc,"state")=="cancelled"?L"Przerwano":L"Częściowy";
+                    const auto& archived_state=field(doc,"state");
+                    const auto& pings=field(t,"host_pings");
+                    auto legacy_cancelled=field(t,"error")=="cancelled" || field(field(pings,"gateway"),"reason")=="cancelled" ||
+                        field(field(pings,"node"),"reason")=="cancelled";
+                    bool cancelled_report=archived_state=="cancelled" || (archived_state.is_null() && legacy_cancelled);
+                    bool completed=archived_state=="completed" || (archived_state.is_null() && doc.contains("throughput") &&
+                        !summary::read(doc).partial);
+                    auto state=cancelled_report?L"Przerwano":completed?L"Zakończono":L"Częściowy";
                     auto target=field(m,"target_name").is_string()?field(m,"target_name"):field(t,"peer");
                     row.cells.insert(row.cells.end(),{state,target.is_string()?wide(target.get<std::string>()):L"—"});
                 }else if(doc.contains("throughput")){
@@ -915,6 +927,15 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
         if(id==compare_id && !busy){compare_route(w);return 0;}
         if(id==export_id && !busy){export_page(w);return 0;}
         if(id==refresh_live_id && !busy && (view.page()==2 || view.page()==3)){refresh_live(w,view.page());return 0;}
+        if(id==resource_monitor_id && view.page()==2 && !busy){
+            wchar_t dir[MAX_PATH]{};
+            auto len=GetSystemDirectoryW(dir,MAX_PATH);
+            auto path=std::filesystem::path(dir)/L"resmon.exe";
+            if(!len || len>=MAX_PATH ||
+               reinterpret_cast<INT_PTR>(ShellExecuteW(w,L"open",path.c_str(),nullptr,nullptr,SW_SHOWNORMAL))<=32)
+                view.route_status(L"Windows nie otworzył Monitora zasobów.");
+            return 0;
+        }
         if(id==copy_row_id && !busy){
             auto body=selected_row_text();
             if(!body.empty())view.route_status(copy_text(w,body)?L"Skopiowano zaznaczony wiersz":L"Schowek jest niedostępny");

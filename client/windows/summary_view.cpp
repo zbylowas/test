@@ -118,6 +118,7 @@ void View::create(HWND parent,std::wstring origin,std::wstring brand) {
     update_=button(L"Sprawdź aktualizacje",update_id);
     archive_=button(L"Otwórz raport",archive_id);compare_=button(L"Porównaj trasę",compare_id);action_=button(L"Wykonaj test",action_id);export_=button(L"Eksportuj…",export_id);
     copy_row_=button(L"Kopiuj wiersz",copy_row_id);refresh_live_=button(L"Odśwież odczyt",refresh_live_id);
+    resource_monitor_=button(L"Monitor zasobów",resource_monitor_id);
     scale(GetDpiForWindow(parent)); update(read(nullptr));
 }
 void View::scale(UINT dpi) {
@@ -227,6 +228,7 @@ void View::layout() {
     const bool action_right=mtr || page_==9 || page_==10;
     move(copy_row_,x+area-(action_right?398:258),footer_y,126,32,workspace_);
     move(refresh_live_,x+area-290,24,142,34,workspace_ && (page_==2 || page_==3));
+    move(resource_monitor_,x+area-445,24,147,34,workspace_ && page_==2);
     move(copy_,x,height-bar-46,narrow_actions?142:180,32,!home_page);
     move(footer_,0,viewport-bar,width,bar);
     SetWindowPos(footer_,HWND_TOP,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
