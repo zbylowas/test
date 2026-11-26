@@ -11,6 +11,7 @@ struct LiveTraffic {
     std::atomic<unsigned long long> received{}, sent{};
     std::atomic<unsigned long long> profile_bps{};
     bool capacity = true;
+    std::function<void(const Json&)> on_measurement_adapter;
     void clear();
     void observe(size_t direction, unsigned long long bytes);
     Json trace(size_t direction) const;

@@ -233,6 +233,7 @@ void end_chart(HWND window) {
 void run(HWND window,bool measure_processes=false) {
     process_capture=measure_processes?std::make_unique<traffic::Capture>():nullptr;
     auto* capture=process_capture.get();
+    live_traffic.on_measurement_adapter=capture?[capture](const Json& ip){capture->use_adapter(ip);}:std::function<void(const Json&)>{};
     live_traffic.clear();
     live_traffic.capacity=view.capacity();
     busy=true;cancelled=false;technical=false;report_open=false;
@@ -691,7 +692,7 @@ void navigate(HWND w,int page){
     }
     view.workspace(page,std::move(p));
     if((page==2 && !process_capture) || page==3)refresh_live(w,page);
-    if(page==2)SetDlgItemTextW(w,process_test_id,L"Test z ruchem procesów");
+
     if(page==11){
         set_control(w,update_id,installed_update?L"Zamknij i zastosuj":offered_release?L"Zainstaluj aktualizację":L"Sprawdź aktualizacje");
         EnableWindow(GetDlgItem(w,update_id),!updating && !busy && !loading);
@@ -943,10 +944,9 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
         if(id==compare_id && !busy){compare_route(w);return 0;}
         if(id==export_id && !busy){export_page(w);return 0;}
         if(id==refresh_live_id && !busy && (view.page()==2 || view.page()==3)){refresh_live(w,view.page());return 0;}
-        if(id==process_test_id && view.page()==2 && !loading && !live_active){
-            if(busy){
-                if(process_capture){cancelled=true;view.route_status(L"Zatrzymywanie i zapis pomiaru…");}
-            }else run(w,true);
+        if(id==process_test_id && busy && process_capture){
+            cancelled=true;
+            view.route_status(L"Zatrzymywanie i zapis pomiaru…");
             return 0;
         }
         if(id==resource_monitor_id && view.page()==2 && !busy){
@@ -967,7 +967,8 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
             if(id==choice_id){game_selection(w);show_profiles_info(w);}
             if(id==region_id){show_profiles_info(w);game_region(w);}
         }
-        if(id==start_id && !busy && !loading) run(w);
+        if(id==start_id && !busy && !loading)
+            run(w,SendDlgItemMessageW(w,process_option_id,BM_GETCHECK,0,0)==BST_CHECKED);
         else if(id==stop_id && busy) {cancelled=true;end_chart(w);view.phase(L"Zatrzymywanie pomiaru…");}
         else if(id==copy_id && !busy && !loading) {
             view.phase(copy_text(w,code)?L"Skopiowano prywatny kod klienta":L"Nie można skopiować kodu klienta");

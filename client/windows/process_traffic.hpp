@@ -11,6 +11,7 @@ public:
     Capture& operator=(const Capture&)=delete;
 
     bool start(HWND owner);
+    void use_adapter(const Json& local_ip);
     void finish();
     summary::DetailPage page(bool live, const std::wstring& phase);
 

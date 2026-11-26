@@ -33,10 +33,23 @@ struct Snapshot {
     unsigned count{};
     Bytes rows[max_processes]{};
 };
+struct Address {
+    std::array<unsigned char,16> bytes{};
+    unsigned length{};
+    bool operator==(const Address&) const = default;
+};
+struct LocalPrefix {
+    Address address;
+    unsigned bits{};
+};
+constexpr unsigned max_addresses=128;
 struct Shared {
     volatile LONG status{}; // 0 starting, 1 ready, 2 finished, negative Win32 error
     volatile LONG sequence{};
     alignas(8) volatile LONG64 start{},end{};
+    unsigned addresses{};
+    DWORD app_pid{};
+    LocalPrefix adapter[max_addresses]{};
     Snapshot snapshot{};
 };
 unsigned long long qpc() {
@@ -77,15 +90,58 @@ bool loopback(const unsigned char* address, bool ipv6){
     std::memcpy(&addr,address,16);
     return IN6_IS_ADDR_LOOPBACK(&addr) || (IN6_IS_ADDR_V4MAPPED(&addr) && address[12]==127);
 }
+Address address(const unsigned char* bytes, bool ipv6){
+    Address result;
+    const auto length=ipv6?16u:4u;
+    if(ipv6 && std::all_of(bytes,bytes+10,[](auto b){return b==0;}) &&
+       bytes[10]==0xff && bytes[11]==0xff)return address(bytes+12,false);
+    std::copy_n(bytes,length,result.bytes.begin());
+    result.length=length;
+    return result;
+}
+Address address(const SOCKADDR_INET& ip){
+    if(ip.si_family==AF_INET)
+        return address(reinterpret_cast<const unsigned char*>(&ip.Ipv4.sin_addr),false);
+    if(ip.si_family==AF_INET6)
+        return address(reinterpret_cast<const unsigned char*>(&ip.Ipv6.sin6_addr),true);
+    return {};
+}
+bool public_address(const Address& value){
+    Target target;
+    if(value.length==4){
+        target.address.Ipv4.sin_family=AF_INET;
+        std::memcpy(&target.address.Ipv4.sin_addr,value.bytes.data(),4);
+    }else if(value.length==16){
+        target.address.Ipv6.sin6_family=AF_INET6;
+        std::memcpy(&target.address.Ipv6.sin6_addr,value.bytes.data(),16);
+    }else return false;
+    return public_game_target(target);
+}
+bool on_link(const Address& remote, const LocalPrefix& prefix){
+    if(remote.length!=prefix.address.length || !prefix.bits || prefix.bits>remote.length*8)return false;
+    unsigned full=prefix.bits/8,tail=prefix.bits%8;
+    if(!std::equal(remote.bytes.begin(),remote.bytes.begin()+full,prefix.address.bytes.begin()))return false;
+    return !tail || ((remote.bytes[full]^prefix.address.bytes[full])>>(8-tail))==0;
+}
+bool internet_on_adapter(const Shared& capture,const Address& local,const Address& remote){
+    if(!public_address(remote))return false;
+    bool from_adapter=false;
+    for(unsigned i=0;i<std::min(capture.addresses,max_addresses);++i){
+        const auto& part=capture.adapter[i];
+        if(on_link(remote,part))return false;
+        from_adapter|=part.address==local;
+    }
+    return from_adapter;
+}
 struct Session {
     Shared& receiver;
-    bool include_loopback{};
+    bool include_loopback{}, require_adapter{true};
     std::mutex mutex;
     std::map<DWORD,Bytes> counts;
     DWORD invalid{},overflow{};
     std::atomic<ULONG> consume_status{ERROR_SUCCESS};
 
-    Session(Shared& output,bool loopback):receiver(output),include_loopback(loopback){}
+    Session(Shared& output,bool loopback):receiver(output),include_loopback(loopback),require_adapter(!loopback){}
 
     static void WINAPI record(EVENT_RECORD* event) {
         if(!IsEqualGUID(event->EventHeader.ProviderId,network_provider))return;
@@ -105,9 +161,13 @@ struct Session {
             std::lock_guard lock(self.mutex);++self.invalid;return;
         }
         const auto* data=static_cast<const unsigned char*>(event->UserData);
-        if(!self.include_loopback && (loopback(data+8,ipv6) || loopback(data+(ipv6?24:12),ipv6)))return;
+        auto destination=data+8,source=data+(ipv6?24:12);
+        if(!self.include_loopback && (loopback(destination,ipv6) || loopback(source,ipv6)))return;
+        if(self.require_adapter && !internet_on_adapter(self.receiver,address(send?source:destination,ipv6),
+                                                        address(send?destination:source,ipv6)))return;
         DWORD pid{}, size{};
         std::memcpy(&pid,data,4);std::memcpy(&size,data+4,4);
+        if(self.require_adapter && (!pid || pid==self.receiver.app_pid || !size))return;
         std::lock_guard lock(self.mutex);
         auto entry=self.counts.find(pid);
         if(entry==self.counts.end()){
@@ -252,7 +312,8 @@ bool Capture::start(HWND owner){
     for(int retry=0;retry<80;++retry){
         LONG state=InterlockedCompareExchange(&s.shared()->status,0,0);
         if(state==1){
-            InterlockedExchange64(&s.shared()->start,qpc());
+            std::lock_guard lock(s.mutex);
+            s.status=L"Ustalanie karty używanej przez serwer pomiarowy…";
             return true;
         }
         if(state<0 || WaitForSingleObject(s.child.get(),100)==WAIT_OBJECT_0)break;
@@ -265,6 +326,44 @@ bool Capture::start(HWND owner){
     }
     finish();
     return false;
+}
+void Capture::use_adapter(const Json& local_ip){
+    auto& s=*state_;
+    std::lock_guard lock(s.mutex);
+    auto* shared=s.shared();
+    if(!shared || InterlockedCompareExchange(&shared->status,0,0)!=1)return;
+    s.status=L"Brak odczytu ruchu procesów. Windows nie potwierdził karty testu.";
+    if(!local_ip.is_string())return;
+
+    Address wanted;
+    try {
+        wanted=address(parse_target(local_ip.get_ref<const std::string&>().c_str()).address);
+    }catch(const std::invalid_argument&){return;}
+    MIB_UNICASTIPADDRESS_TABLE* raw=nullptr;
+    if(GetUnicastIpAddressTable(AF_UNSPEC,&raw)!=NO_ERROR)return;
+    std::unique_ptr<MIB_UNICASTIPADDRESS_TABLE,decltype(&FreeMibTable)> rows(raw,FreeMibTable);
+    ULONG64 adapter=0;
+    for(ULONG i=0;i<rows->NumEntries;++i){
+        const auto& row=rows->Table[i];
+        if(address(row.Address)!=wanted)continue;
+        if(adapter && adapter!=row.InterfaceLuid.Value)return;
+        adapter=row.InterfaceLuid.Value;
+    }
+    if(!adapter)return;
+    for(ULONG i=0;i<rows->NumEntries;++i){
+        const auto& row=rows->Table[i];
+        if(row.InterfaceLuid.Value!=adapter)continue;
+        if(shared->addresses>=max_addresses){
+            shared->addresses=0;
+            return;
+        }
+        shared->adapter[shared->addresses++]={address(row.Address),row.OnLinkPrefixLength};
+    }
+    if(shared->addresses){
+        shared->app_pid=GetCurrentProcessId();
+        s.status=L"Czekam na pierwsze próbki ruchu do Internetu.";
+        InterlockedExchange64(&shared->start,qpc());
+    }
 }
 void Capture::finish(){
     auto& s=*state_;
@@ -291,7 +390,7 @@ summary::DetailPage Capture::page(bool live,const std::wstring& phase){
     }
     if(status<0){result.subtitle=L"Brak danych ETW · kod Windows "+std::to_wstring(-status);return result;}
     if(!current.elapsed_ms)return result;
-    result.subtitle=(live?phase+L" · Ruch TCP i UDP według procesu":L"Średni ruch procesów podczas ostatniego testu");
+    result.subtitle=(live?phase+L" · Ruch do Internetu według procesu":L"Średni ruch do Internetu · ostatni test");
     if(current.lost || current.omitted || current.ignored_versions)
         result.subtitle+=L" · Dane częściowe";
     bool interval=live && state.prior.elapsed_ms<current.elapsed_ms;
@@ -310,29 +409,29 @@ summary::DetailPage Capture::page(bool live,const std::wstring& phase){
     unsigned long long other_rx=0,other_tx=0;
     for(unsigned i=0;i<current.count && i<max_processes;++i){
         auto row=current.rows[i],before=previous[row.pid];
+        if(!row.pid || row.pid==GetCurrentProcessId())continue;
         rows.push_back({row,row.received>=before.received?row.received-before.received:0,
                             row.sent>=before.sent?row.sent-before.sent:0});
-        if(row.pid && row.pid!=GetCurrentProcessId()){
-            other_rx+=rows.back().rx;
-            other_tx+=rows.back().tx;
-        }
+        if(live && !rows.back().rx && !rows.back().tx){rows.pop_back();continue;}
+        other_rx+=rows.back().rx;
+        other_tx+=rows.back().tx;
     }
     if(live && interval)state.prior=current;
     result.subtitle+=L" · Inne procesy ↓ "+rate(other_rx,span)+L" / ↑ "+rate(other_tx,span);
     std::stable_sort(rows.begin(),rows.end(),[](const Row& a,const Row& b){return a.rx+a.tx>b.rx+b.tx;});
     if(rows.empty()){
-        result.rows.push_back({{L"Brak zdarzeń TCP/UDP"},L"W tym oknie Windows nie zarejestrował ruchu poza loopback.",{},{}});
+        result.rows.push_back({{L"Brak ruchu innych procesów"},L"Windows nie zarejestrował ruchu TCP/UDP od innych procesów do publicznych adresów na karcie pomiarowej.",{},{}});
+        if(live)state.last_live=result;
         return result;
     }
     for(const auto& row:rows){
         auto pid=row.overall.pid;
         auto entry=state.label.find(pid);
-        auto name=pid==GetCurrentProcessId()?L"VIP-NET · aplikacja testowa":
-            entry!=state.label.end()?entry->second:pid?L"Proces zakończony / nazwa niedostępna":L"Windows · brak przypisania PID";
+        auto name=entry!=state.label.end()?entry->second:L"Proces zakończony / nazwa niedostępna";
         result.rows.push_back({{name,std::to_wstring(pid),rate(row.rx,span),rate(row.tx,span),
             summary::number((row.overall.received+row.overall.sent)/1000000.)+L" MB"},
-            L"Zdarzenia warstwy TCP/UDP Windows dla tego PID. Ruch obejmuje karty w komputerze, również sieć lokalną. Loopback jest pomijany. "
-            L"Ostatni pełny wynik podaje średnią z czasu odczytu. Rozmiary zdarzeń mogą różnić się od danych aplikacyjnych i licznika karty.",{},{}});
+            L"Ruch TCP/UDP do lub z publicznych adresów na karcie pomiarowej. Średnia końcowa obejmuje całą fazę odczytu. "
+            L"Proces może konkurować o przepustowość, jeżeli ruch korzysta z tego samego łącza.",{},{}});
     }
     if(live)state.last_live=result;
     return result;
@@ -359,6 +458,7 @@ int verify_loopback(){
     Shared synthetic{};
     InterlockedExchange64(&synthetic.start,100);
     Session parser{synthetic,false};
+    parser.require_adapter=false;
     EVENT_RECORD fixture{};
     fixture.UserContext=&parser;
     fixture.EventHeader.ProviderId=network_provider;

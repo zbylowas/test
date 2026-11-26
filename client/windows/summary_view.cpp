@@ -119,7 +119,8 @@ void View::create(HWND parent,std::wstring origin,std::wstring brand) {
     archive_=button(L"Otwórz raport",archive_id);compare_=button(L"Porównaj trasę",compare_id);action_=button(L"Wykonaj test",action_id);export_=button(L"Eksportuj…",export_id);
     copy_row_=button(L"Kopiuj wiersz",copy_row_id);refresh_live_=button(L"Odśwież odczyt",refresh_live_id);
     resource_monitor_=button(L"Monitor zasobów",resource_monitor_id);
-    process_test_=button(L"Test z ruchem procesów",process_test_id);
+    process_test_=button(L"Zatrzymaj pomiar",process_test_id);
+    process_option_=child(L"BUTTON",L"Pokaż ruch procesów",BS_AUTOCHECKBOX|WS_TABSTOP,process_option_id);
     scale(GetDpiForWindow(parent)); update(read(nullptr));
 }
 void View::scale(UINT dpi) {
@@ -134,7 +135,7 @@ void View::scale(UINT dpi) {
             DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,i==6?L"Segoe MDL2 Assets":found?L"Segoe UI Variable Text":L"Segoe UI");
         if (old) DeleteObject(old);
     }
-    for (auto w:{sub_,time_,footer_,profile_label_}) SendMessageW(w,WM_SETFONT,reinterpret_cast<WPARAM>(fonts_[0]),FALSE);
+    for (auto w:{sub_,time_,footer_,profile_label_,process_option_}) SendMessageW(w,WM_SETFONT,reinterpret_cast<WPARAM>(fonts_[0]),FALSE);
     for (auto w:{profile_,detail_,table_,target_,choice_,mode_,region_,limit_,interval_,family_,saved_,game_method_,game_length_}) SendMessageW(w,WM_SETFONT,reinterpret_cast<WPARAM>(fonts_[1]),FALSE);
     for (auto w:{measurement_,diagnostics_}) SendMessageW(w,WM_SETFONT,reinterpret_cast<WPARAM>(fonts_[2]),FALSE);
     for(size_t i=0;i<table_data_.columns.size();++i)ListView_SetColumnWidth(table_,static_cast<int>(i),px(table_data_.columns[i].second));
@@ -170,6 +171,7 @@ void View::layout() {
     move(profile_,x+area-313,small?30:39,145,140,home_page);
     move(start_,x+area-152,small?24:33,152,36,home_page && !busy_);
     move(stop_,x+area-152,small?24:33,152,36,home_page && busy_);
+    move(process_option_,x+area-313,small?56:67,313,19,home_page && !busy_);
     move(back_,x+area-135,24,135,34,!home_page);
     int y=small?77:100;
     move(measurement_,x,y,area/2,28,home_page);
@@ -212,8 +214,8 @@ void View::layout() {
     move(saved_,x+474,top+39,area-474,230,mtr);
     move(game_method_,x+area-295,top+39,135,130,games);move(game_length_,x+area-152,top+39,152,150,games);
     if(route)top+=mtr || games?82:45;
-    move(process_test_,x,top,190,32,workspace_ && page_==2);
-    if(workspace_ && page_==2)top+=40;
+    move(process_test_,x,top,190,32,workspace_ && page_==2 && busy_);
+    if(workspace_ && page_==2 && busy_)top+=40;
     int panel_h=small?94:116;
     bool cards=workspace_ && !table_data_.rows.empty() && (page_<=5 || page_==6 || page_==8);
     for(int i=0;i<3;++i){

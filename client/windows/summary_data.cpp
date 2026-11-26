@@ -69,6 +69,12 @@ void measured(Fact& f,std::wstring v,std::wstring detail,Tone tone=Tone::observe
     f.value=std::move(v);f.detail=std::move(detail);f.tone=tone;
 }
 }
+bool link_local_v6(std::wstring_view value){
+    auto scope=value.find(L'%');
+    std::wstring ip(value.substr(0,scope));
+    IN6_ADDR bytes{};
+    return InetPtonW(AF_INET6,ip.c_str(),&bytes)==1 && IN6_IS_ADDR_LINKLOCAL(&bytes);
+}
 std::vector<std::wstring> display_dns(const Json& adapter){
     std::vector<std::wstring> result,ipv6;
     for(const auto& item:value(adapter,"dns")){
@@ -158,7 +164,7 @@ Snapshot read(const Json& report) {
             if (check.tone==Tone::neutral) measured(check,ip,ip);
             else {
                 check.detail+=L"\r\n"+ip;
-                if(check.value.starts_with(L"fe80:") && !ip.starts_with(L"fe80:"))check.value=ip;
+                if(link_local_v6(check.value) && !link_local_v6(ip))check.value=ip;
             }
         }
         const auto dns=display_dns(*nic);
@@ -177,6 +183,7 @@ Snapshot read(const Json& report) {
         auto detail=family.tone==Tone::observed ? L"Adresy lokalne karty\r\n"+family.detail+L"\r\n\r\n" : L"";
         measured(family,observed,detail+L"Adres klienta widziany przez węzeł HTTPS\r\n"+observed);
     }
+    if(link_local_v6(s.checks[7].value))s.checks[7].label=L"IPv6 · link-local";
     if (e.complete) measured(s.checks[8],e.timeouts?L"Brak części odpowiedzi":L"Serwer odpowiedział",
         s.metrics[4].detail+L" Krótka seria dotyczy wyłącznie chwili testu.",e.timeouts?Tone::warning:Tone::observed);
     if (!worst_delta && (s.metrics[5].tone==Tone::observed || s.metrics[6].tone==Tone::observed))

@@ -188,6 +188,7 @@ def run(exe):
             click = lambda control: user.SendMessageW(get(control), 0x00F5, 0, 0)
             wait(lambda: user.IsWindowEnabled(get(101)))
             assert not user.IsWindowVisible(get(112))
+            assert user.IsWindowVisible(get(336))
             assert user.SendMessageW(get(106), 0x0146, 0, 0) == 2
             assert "—" in caption(get(240))
             assert "Nie przetestowano" in caption(get(253))
@@ -224,7 +225,7 @@ def run(exe):
                 wait(lambda: user.IsWindowVisible(get(333)) and user.IsWindowEnabled(get(333)))
                 assert user.IsWindowEnabled(get(332))
                 assert bool(user.IsWindowVisible(get(334))) == (page == 202)
-                assert bool(user.IsWindowVisible(get(335))) == (page == 202)
+                assert not user.IsWindowVisible(get(335))
                 if page == 202:
                     assert "Procent zajętej" in caption(get(311))
             click(108)

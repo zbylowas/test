@@ -1,5 +1,10 @@
 # Historia wydań
 
+## 1.1.1
+
+- Odczyt ruchu procesów to opcja zwykłego pomiaru. Podaje ruch innych procesów do publicznych adresów przez kartę pomiarową. Pomija ruch lokalny i połączenia bez nowych próbek.
+- Sieć lokalna ma osobne kolumny dla hostname z lokalnej pamięci DNS, producenta z bazy OUI i roli urządzenia. Adresy IPv6 link-local są oznaczone w szczegółach.
+
 ## 1.1.0
 
 - Widok Komputer ma test z ruchem procesów. Aplikacja pokazuje pobieranie i wysyłanie osobno dla każdego PID zaobserwowanego przez Windows oraz sumę ruchu innych procesów. Podczas testu podaje bieżące wartości, po zakończeniu średnią.

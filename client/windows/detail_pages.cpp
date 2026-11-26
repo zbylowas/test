@@ -183,7 +183,7 @@ DetailPage detail_page(int page,const Json& report,const Snapshot& s){
                 auto address=value(ip);
                 const bool v6=address.find(L':')!=address.npos;
                 metric(p,v6?L"IPv6 · karta":L"IPv4 · karta",address,
-                    v6 && address.starts_with(L"fe80:")?L"Adres łącza lokalnego karty.":L"Adres odczytany z karty pomiarowej.");
+                    v6 && link_local_v6(address)?L"Adres łącza lokalnego karty.":L"Adres odczytany z karty pomiarowej.");
             }
         }
         const auto& peer=field(t,"peer");

@@ -51,7 +51,7 @@ class Channel {
 public:
     std::string peer;
     Channel(const std::string& id, const std::wstring& origin)
-        : session_(handle(WinHttpOpen(L"VIP-NET transfer/1.1.0", WINHTTP_ACCESS_TYPE_NO_PROXY, nullptr, nullptr, 0))),
+        : session_(handle(WinHttpOpen(L"VIP-NET transfer/1.1.1", WINHTTP_ACCESS_TYPE_NO_PROXY, nullptr, nullptr, 0))),
           connection_(nullptr, WinHttpCloseHandle), base_(L"/measure/v1/runs/" + widen(id)) {
         URL_COMPONENTS url{};
         url.dwStructSize = sizeof(url);
@@ -387,6 +387,7 @@ Json measure_throughput(Queue& queue, const std::string& id, const std::atomic_b
         if (live) live->profile_bps = static_cast<unsigned long long>(rate);
         auto deadline = Clock::now() + std::chrono::seconds(seconds);
         save();
+        if(live && live->on_measurement_adapter)live->on_measurement_adapter(doc["reservation_local_ip"].value("value",Json{}));
         for (const auto& phase : phases) {
             if (cancel || Clock::now() >= deadline) break;
             bool loaded = phase == "download" || phase == "upload";

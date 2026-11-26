@@ -27,6 +27,7 @@ const Json* used_adapter(const Json& inventory,const Json& transfer);
 std::wstring number(double value);
 std::wstring from_utf8(const std::string& text);
 std::vector<Point> rates(const Json& counters);
+bool link_local_v6(std::wstring_view address);
 std::vector<std::wstring> display_dns(const Json& adapter);
 Snapshot read(const Json& report);
 }
