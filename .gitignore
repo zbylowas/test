@@ -8,3 +8,4 @@ __pycache__/
 .env
 *.pfx
 *.key
+/client/windows/project-signer.b64

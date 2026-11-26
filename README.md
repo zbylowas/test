@@ -1,10 +1,14 @@
 # VIP-NET Internet Diagnostics
 
-Windows 0.7.2 pokazuje wyniki prędkości, opóźnienia, stan komputera, sieć i Wi-Fi w jasnych widokach. W MTR możesz wpisać adres lub nazwę DNS, ustawić rodzinę IP, wybrać ICMP lub TCP 443, obejrzeć poszczególne skoki i porównać trasy. Diagnostyka gier pobiera katalog z serwera. Zawiera regionalne cele Fortnite i Valoranta. Dla gier takich jak Roblox, Counter-Strike 2, Minecraft, Dota 2, League of Legends i PUBG: BATTLEGROUNDS możesz wpisać adres serwera, który chcesz sprawdzić. Historia zachowuje także przerwane pomiary. Budując własną dystrybucję, ustaw adres kontrolowanego serwera w pliku NetDiagnostics.ini lub w opcji CMake NETDIAG_DESKTOP_ORIGIN. [Konfiguracja Windows](deploy/windows-portable.md)
+Windows 0.7.6 pokazuje wyniki prędkości, opóźnienia, stan komputera, sieć i Wi-Fi w jasnych widokach. W MTR możesz wpisać adres lub nazwę DNS, ustawić rodzinę IP, wybrać ICMP lub TCP 443, obejrzeć poszczególne skoki i porównać trasy. Diagnostyka gier zawiera 18 profili gier i platform, w tym Roblox, Counter-Strike 2, Minecraft, Dota 2, League of Legends, Valorant i PUBG: BATTLEGROUNDS. Własny profil pozwala wpisać adres ręcznie. Historia zachowuje także przerwane pomiary. Budując własną dystrybucję, ustaw adres kontrolowanego serwera w pliku NetDiagnostics.ini lub w opcji CMake NETDIAG_DESKTOP_ORIGIN. [Konfiguracja Windows](deploy/windows-portable.md)
 
 ## Kod i licencja
 
-Autorem projektu jest vip-net.pl. Licencja MIT obejmuje autorski kod klienta Windows, portalu Vue, API Python z migracjami PostgreSQL, węzła pomiarowego, reguł analizy, kontraktów i testów. Zależności mają własne licencje. [Licencja projektu](LICENSE) · [Informacje o zależnościach](licenses/README.md)
+Twórcą projektu **VIP-NET Internet Diagnostics** jest **vip-net.pl**. [Strona twórcy](https://vip-net.pl)
+
+Przy publikacji kopii projektu lub istotnej części kodu zachowaj plik `LICENSE` z informacją `Copyright (c) 2026 vip-net.pl` oraz tekstem licencji MIT. Ten zapis zachowuje oznaczenie **vip-net.pl** jako twórcy projektu.
+
+Licencja MIT obejmuje autorski kod klienta Windows, portalu Vue, API Python z migracjami PostgreSQL, węzła pomiarowego, reguł analizy, kontraktów i testów. Zależności mają własne licencje. [Licencja projektu](LICENSE) · [Informacje o zależnościach](licenses/README.md)
 
 ## Kompilacja na Windows
 
@@ -40,10 +44,10 @@ Testy sieciowe CI wykonują pomiary na loopback. Dane w docs/evidence tej edycji
 
 ## Code signing policy
 
-W wydaniu stagingowym 0.7.5 plik Windows otrzymuje podpis kluczem projektu. Certyfikat wystawiono we własnym zakresie. Windows może zgłosić nieznanego wydawcę. Aktualizacje weryfikują podpis manifestu przypiętym kluczem projektu. Suma SHA-256 i bieżący status Authenticode są dostępne na stronie pobierania. Autorskie wydania przygotowuje vip-net.pl. Udział w programie SignPath Foundation wymaga odrębnej akceptacji fundacji i zweryfikowania pochodzenia pliku z publicznej budowy. [Metadane wydania](https://diagnostics.example.org/pobierz/windows-release.json) · [Zasady SignPath](https://signpath.org/terms)
+Dystrybutor może podpisywać pliki Windows oraz manifest aktualizacji własnym certyfikatem. Kompilacja ze źródeł obsługuje podpisane aktualizacje, gdy dystrybutor udostępni swój certyfikat publiczny w lokalnym pliku `client/windows/project-signer.b64` przed kompilacją. Jest to certyfikat DER zakodowany w Base64. Klucz prywatny pozostaje w magazynie wydawcy. [Zasady SignPath](https://signpath.org/terms)
 
 ## Dane pomiarowe
 
-Po wybraniu **Wykonaj test** aplikacja okienkowa łączy się z wybranym serwerem HTTPS. Domyślnym odbiorcą jest diagnostics.example.org. Program przesyła wyniki transferu i opóźnienia, odpowiedzi routerów, informacje o systemie, interfejsach, trasach i dostępnych parametrach Wi-Fi. Serwer zapisuje adres IP połączenia i pseudonim instalacji Windows. Wyniki są dostępne dla właściciela kodu klienta i uprawnionego operatora organizacji. Kolejka SQLite zachowuje oczekujące oraz częściowe wyniki. Kod klienta znajduje się w Menedżerze poświadczeń Windows. Zachowaj go dla siebie.
+Po wybraniu **Wykonaj test** aplikacja okienkowa łączy się z wybranym serwerem HTTPS. W kompilacji ze źródeł adres odbiorcy podaje dystrybutor lub użytkownik. Program przesyła wyniki transferu i opóźnienia, odpowiedzi routerów, informacje o systemie, interfejsach, trasach i dostępnych parametrach Wi-Fi. Serwer zapisuje adres IP połączenia i pseudonim instalacji Windows. Wyniki są dostępne dla właściciela kodu klienta i uprawnionego operatora organizacji. Kolejka SQLite zachowuje oczekujące oraz częściowe wyniki. Kod klienta znajduje się w Menedżerze poświadczeń Windows. Zachowaj go dla siebie.
 
 Do lokalnej próby MTR można użyć programu vipnet-mtr.exe z celem 127.0.0.1, pozostawiając VIPNET_API_ORIGIN i VIPNET_TOKEN nieustawione. Aplikacja przenośna nie wymaga instalatora. Pliki programu można usunąć po jego zamknięciu. Informacje o profilach i kolejce znajdują się w instrukcji klienta.

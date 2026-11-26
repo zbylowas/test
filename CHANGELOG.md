@@ -1,5 +1,10 @@
 # Historia wydań
 
+## Publikacja źródeł · 2026-11-26
+
+- W README, licencji i metadanych kompilacji Windows wskazano vip-net.pl jako twórcę projektu.
+- Dane wdrożeniowe i certyfikat używany do podpisu wydań przechowuje dystrybutor. Kompilacja publiczna działa z własną konfiguracją serwera i certyfikatem dodanym lokalnie.
+
 ## 0.7.6 · 2026-11-25
 
 - Wszystkie 18 nazwanych profili gier i platform ma adres do wyboru. Opis odróżnia serwer rozgrywki, przekaźnik, punkt pomiarowy i usługę gry. Pole adresu można zaznaczyć i skopiować.

@@ -67,6 +67,7 @@ Release verify(const std::string& manifest) {
             m.at("size")>0 && m.at("size")<=33554432 && r.sha256.size()==64 &&
             r.sha256.find_first_not_of("0123456789abcdef")==std::string::npos,"Niepoprawny opis wydania Windows.");
     r.size=m.at("size").get<DWORD>();
+    require(*project_signer_b64!=0,"W tej kompilacji brakuje certyfikatu wydawcy aktualizacji.");
     auto der=decode(project_signer_b64);
     std::unique_ptr<const CERT_CONTEXT,decltype(&CertFreeCertificateContext)> cert(
         CertCreateCertificateContext(X509_ASN_ENCODING,der.data(),static_cast<DWORD>(der.size())),CertFreeCertificateContext);
@@ -82,7 +83,10 @@ Release verify(const std::string& manifest) {
     return r;
 }
 
-Release check(const std::wstring& origin) {return verify(fetch_release_bytes(origin,false));}
+Release check(const std::wstring& origin) {
+    require(*project_signer_b64!=0,"W tej kompilacji brakuje certyfikatu wydawcy aktualizacji.");
+    return verify(fetch_release_bytes(origin,false));
+}
 
 static std::array<unsigned,3> file_version(const std::filesystem::path& path) {
     DWORD ignored{};
