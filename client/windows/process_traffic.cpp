@@ -56,7 +56,7 @@ bool can_collect_without_prompt(){
     alignas(void*) unsigned char sid[SECURITY_MAX_SID_SIZE]{};
     DWORD sid_size=sizeof sid;
     BOOL member=FALSE;
-    if(CreateWellKnownSid(WinBuiltinPerformanceLoggingUsersSid,nullptr,sid,&sid_size) &&
+    if(CreateWellKnownSid(WinBuiltinPerfLoggingUsersSid,nullptr,sid,&sid_size) &&
        CheckTokenMembership(nullptr,sid,&member) && member)return true;
     HANDLE raw{};
     if(!OpenProcessToken(GetCurrentProcess(),TOKEN_QUERY,&raw))return false;

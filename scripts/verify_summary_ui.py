@@ -224,6 +224,7 @@ def run(exe):
                 wait(lambda: user.IsWindowVisible(get(333)) and user.IsWindowEnabled(get(333)))
                 assert user.IsWindowEnabled(get(332))
                 assert bool(user.IsWindowVisible(get(334))) == (page == 202)
+                assert bool(user.IsWindowVisible(get(335))) == (page == 202)
                 if page == 202:
                     assert "Procent zajętej" in caption(get(311))
             click(108)
