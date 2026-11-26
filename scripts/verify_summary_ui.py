@@ -19,6 +19,10 @@ user.SendMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, win
 user.SendMessageW.restype = ctypes.c_ssize_t
 user.GetDlgItem.argtypes = [wintypes.HWND, ctypes.c_int]
 user.GetDlgItem.restype = wintypes.HWND
+user.SetForegroundWindow.argtypes = [wintypes.HWND]
+user.IsChild.argtypes = [wintypes.HWND, wintypes.HWND]
+user.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+user.GetWindowThreadProcessId.restype = wintypes.DWORD
 
 
 def wait(predicate, seconds=15):
@@ -192,7 +196,6 @@ def run(exe):
                 assert rows[0].right <= rows[1].left
                 assert rows[1].bottom <= rows[2].top
             focus = get(101)
-            user.SendMessageW(win, 0x0028, focus, 1)  # WM_NEXTDLGCTL to a specific button
             class GuiThread(ctypes.Structure):
                 _fields_ = [("size", wintypes.DWORD), ("flags", wintypes.DWORD)] + [
                     (name, wintypes.HWND) for name in ("active", "focus", "capture", "menu", "move", "caret")
@@ -200,9 +203,14 @@ def run(exe):
             thread = user.GetWindowThreadProcessId(win, None)
             info = GuiThread()
             info.size = ctypes.sizeof(info)
-            assert user.GetGUIThreadInfo(thread, ctypes.byref(info)) and info.focus == focus
+            def focus_start_button():
+                user.SetForegroundWindow(win)
+                user.SendMessageW(win, 0x0028, focus, 1)  # WM_NEXTDLGCTL to the Start button
+                return user.GetGUIThreadInfo(thread, ctypes.byref(info)) and info.focus == focus
+            wait(focus_start_button)
             user.PostMessageW(focus, 0x0100, 9, 0)  # Tab through the actual dialog loop
-            wait(lambda: user.GetGUIThreadInfo(thread, ctypes.byref(info)) and info.focus != focus)
+            wait(lambda: user.GetGUIThreadInfo(thread, ctypes.byref(info))
+                 and info.focus != focus and user.IsChild(win, info.focus))
             before = bounds(get(200))
             click(107)
             after = bounds(get(200))
@@ -222,8 +230,7 @@ def run(exe):
             assert not user.IsWindowVisible(get(112))
             user.SendMessageW(get(106), 0x014E, 1, 0)
             click(101)
-            wait(lambda: user.IsWindowEnabled(get(101)), 40)
-            assert user.IsWindowEnabled(get(105))
+            wait(lambda: user.IsWindowEnabled(get(101)) and user.IsWindowEnabled(get(105)), 40)
             assert "—" in caption(get(240))
             click(105)
             assert "Sprawdź połączenie" in caption(get(112))
