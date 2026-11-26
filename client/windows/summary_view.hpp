@@ -16,7 +16,7 @@ public:
     void update(const Snapshot& snapshot);
     void phase(const std::wstring& label);
     void controls(bool busy,bool has_code,bool has_details);
-    void live(size_t direction,const Json& counters);
+    void live(size_t direction,const Json& counters,double profile_mbps);
     void toggle_rail();
     void scroll(int command);
     void details(int nav,const std::wstring& caption,const std::wstring& content);
@@ -37,7 +37,6 @@ public:
     void background(HDC dc);
     void destroy();
     bool capacity() const;
-    void hover(HWND card,int x);
     int px(int value) const;
     const Snapshot& data() const {return data_;}
 private:
@@ -53,13 +52,14 @@ private:
     std::array<HWND,3> facts_{};
     std::array<HWND,12> nav_{};
     std::array<HWND,7> metrics_{};
-    std::array<HWND,10> checks_{};
+    std::array<HWND,check_count> checks_{};
     std::array<HFONT,8> fonts_{};
     std::map<HWND,std::wstring> tips_;
     UINT dpi_=96;
     bool collapsed_{},busy_{};
     int page_=0,offset_=0,scroll_limit_=0;
     bool compact_{};
+    double dial_limit_=10;
     Snapshot data_;
     std::wstring origin_,brand_name_,operation_,report_status_;
     HWND child(const wchar_t* type,const wchar_t* caption,DWORD style,int id);

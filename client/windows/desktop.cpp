@@ -980,7 +980,7 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
         else if(id==menu_id) view.toggle_rail();
         else if(id==back_id) navigate(w,0);
         else if(id>=nav_id && id<nav_id+12) navigate(w,id-nav_id);
-        else if((id>=metric_id && id<metric_id+7) || (id>=check_id && id<check_id+10) || id==finding_id) {
+        else if((id>=metric_id && id<metric_id+7) || (id>=check_id && id<check_id+static_cast<int>(check_count)) || id==finding_id) {
             const auto& s=view.data();std::wstring caption,detail;
             if(id==finding_id){caption=L"Wniosek z pomiaru";detail=s.finding+L"\r\n\r\n"+s.finding_detail;}
             else {
@@ -1012,8 +1012,9 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
             }
         }
         if(a==chart_timer && active_direction && !cancelled) {
-            int i=active_direction-1;view.live(i,live_traffic.trace(i));
-            const auto& pts=view.data().lines[i];auto cap=live_traffic.profile_bps.load()/1e6;
+            int i=active_direction-1;auto cap=live_traffic.profile_bps.load()/1e6;
+            view.live(i,live_traffic.trace(i),cap);
+            const auto& pts=view.data().lines[i];
             if(!pts.empty() && cap>0) set_window_icon(w,static_cast<int>(std::lround(20*std::clamp(pts.back().mbps/cap,0.0,1.0))));
         }return 0;
     case phase_message:

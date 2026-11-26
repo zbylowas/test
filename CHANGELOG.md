@@ -1,5 +1,10 @@
 # Historia wydań
 
+## 1.1.2
+
+- Pobieranie i wysyłanie mają osobne wskaźniki wychyłowe w Podsumowaniu i w widoku prędkości. Podczas transferu wskazówka pokazuje bieżącą próbkę, a wynik końcowy korzysta ze średniej potwierdzonej przez serwer. Próbki nadal są dostępne w widoku szczegółowym.
+- Widok Internet pokazuje najpierw IPv6 widziany przez serwer i adresy globalne kart, a następnie adresy prywatne ULA i link-local. W Podsumowaniu usunięto pozycję „Internet zewnętrzny”.
+
 ## 1.1.1
 
 - Odczyt ruchu procesów to opcja zwykłego pomiaru. Podaje ruch innych procesów do publicznych adresów przez kartę pomiarową. Pomija ruch lokalny i połączenia bez nowych próbek.

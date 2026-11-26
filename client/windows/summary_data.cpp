@@ -37,6 +37,12 @@ std::vector<Point> rates(const Json& rows) {
 namespace {
 std::wstring string_value(const Json& v) { return v.is_string()?from_utf8(v.get<std::string>()):L""; }
 const Json& value(const Json& v,const char* name) { return field(field(v,name),"value"); }
+std::optional<IN6_ADDR> parse_ipv6(std::wstring_view address) {
+    std::wstring ip(address.substr(0,address.find(L'%')));
+    IN6_ADDR bytes{};
+    if (InetPtonW(AF_INET6,ip.c_str(),&bytes)!=1) return {};
+    return bytes;
+}
 struct Echo {
     size_t received{},timeouts{};
     std::optional<double> ping,jitter;
@@ -70,10 +76,50 @@ void measured(Fact& f,std::wstring v,std::wstring detail,Tone tone=Tone::observe
 }
 }
 bool link_local_v6(std::wstring_view value){
-    auto scope=value.find(L'%');
-    std::wstring ip(value.substr(0,scope));
-    IN6_ADDR bytes{};
-    return InetPtonW(AF_INET6,ip.c_str(),&bytes)==1 && IN6_IS_ADDR_LINKLOCAL(&bytes);
+    auto bytes=parse_ipv6(value);
+    return bytes && IN6_IS_ADDR_LINKLOCAL(&*bytes);
+}
+std::vector<Ipv6Address> ipv6_addresses(const Json& report,const Json* adapter) {
+    enum Scope : size_t { observed, global, private_ula, other, link_local, scope_count };
+    std::array<std::vector<Ipv6Address>,scope_count> groups;
+    auto append=[&](std::wstring ip,const std::wstring& source,bool server) {
+        auto bytes=parse_ipv6(ip);
+        if (!bytes || IN6_IS_ADDR_UNSPECIFIED(&*bytes) || IN6_IS_ADDR_LOOPBACK(&*bytes) ||
+            IN6_IS_ADDR_MULTICAST(&*bytes) || IN6_IS_ADDR_V4MAPPED(&*bytes)) return;
+        const auto first=bytes->u.Byte[0];
+        const auto scope=IN6_IS_ADDR_LINKLOCAL(&*bytes)?link_local:
+            server?observed:(first&0xe0)==0x20?global:(first&0xfe)==0xfc?private_ula:other;
+        constexpr std::array labels{L"IPv6 · widziany przez serwer",L"IPv6 · globalny",L"IPv6 · prywatny (ULA)",
+                                    L"IPv6 · inny zakres",L"IPv6 · link-local"};
+        constexpr std::array notes{L"Adres klienta zarejestrowany przy połączeniu HTTPS.",
+            L"Adres z zakresu globalnego. Odczyt karty sam nie potwierdza łączności IPv6.",
+            L"Adres prywatny ULA, przeznaczony do komunikacji w sieciach prywatnych.",
+            L"Adres IPv6 spoza typowych zakresów globalnego, ULA i link-local.",
+            L"Adres lokalny dla jednego łącza."};
+        const auto detail=source+L"\r\n"+notes[scope];
+        auto& group=groups[scope];
+        if (std::none_of(group.begin(),group.end(),[&](const auto& entry){
+                return entry.address==ip && entry.detail==detail;
+            }))
+            group.push_back({std::move(ip),labels[scope],detail});
+    };
+    append(string_value(field(report,"observed_ip")),L"Węzeł pomiarowy",true);
+    auto add_card=[&](const Json& card,const std::wstring& source){
+        for (const auto& entry:value(card,"unicast")) {
+            const auto& dad=field(entry,"dad_state");
+            if (dad.is_number_integer() && dad!=3 && dad!=4) continue;
+            append(string_value(field(entry,"ip")),source,false);
+        }
+    };
+    if (adapter) add_card(*adapter,L"Karta pomiarowa");
+    for (const auto& card:value(field(report,"inventory"),"interfaces")) {
+        if (&card==adapter || field(card,"oper_status")!=1 || field(card,"type")==24) continue;
+        auto model=string_value(value(card,"model"));
+        add_card(card,model.empty()?L"Inna aktywna karta":L"Inna aktywna karta · "+model);
+    }
+    std::vector<Ipv6Address> result;
+    for (auto& group:groups) for (auto& entry:group) result.push_back(std::move(entry));
+    return result;
 }
 std::vector<std::wstring> display_dns(const Json& adapter){
     std::vector<std::wstring> result,ipv6;
@@ -95,7 +141,8 @@ std::vector<std::wstring> display_dns(const Json& adapter){
 Snapshot read(const Json& report) {
     Snapshot s;
     const wchar_t* metric_names[]={L"Pobieranie",L"Wysyłanie",L"Ping",L"Wahanie pingu",L"Utrata odpowiedzi",L"Opóźnienie pobierania",L"Opóźnienie wysyłania"};
-    const wchar_t* names[]={L"Komputer",L"Połączenie",L"Sieć lokalna",L"Sieć operatora",L"Internet zewnętrzny",L"DNS",L"IPv4",L"IPv6",L"Stabilność połączenia",L"Opóźnienie pod obciążeniem"};
+    constexpr std::array<const wchar_t*,check_count> names{L"Komputer",L"Połączenie",L"Sieć lokalna",L"Sieć operatora",
+        L"DNS",L"IPv4",L"IPv6",L"Stabilność połączenia",L"Opóźnienie pod obciążeniem"};
     for (size_t i=0;i<s.metrics.size();++i) s.metrics[i]={metric_names[i],L"—",L"Brak wystarczających próbek tej metryki."};
     for (size_t i=0;i<s.checks.size();++i) s.checks[i]={names[i],L"Nie przetestowano",L"Ten test nie zawiera osobnej próby tego obszaru."};
     s.finding=L"Rozpocznij test, aby sprawdzić swoje połączenie.";
@@ -117,7 +164,8 @@ Snapshot read(const Json& report) {
     size_t worst_direction=0;
     for (size_t i=0;i<2;++i) {
         auto dir=i?"upload":"download";
-        if (auto v=speed(t,dir)) measured(s.metrics[i],number(*v),L"Średnia z całego transferu potwierdzonego przez węzeł pomiarowy, w Mb/s.");
+        s.speed_mbps[i]=speed(t,dir);
+        if (auto v=s.speed_mbps[i]) measured(s.metrics[i],number(*v),L"Średnia z całego transferu potwierdzonego przez węzeł pomiarowy, w Mb/s.");
         if (field(trace,"session_id").is_string() && trace["session_id"]==field(t,"session_id"))
             s.lines[i]=rates(field(trace,dir));
         if (auto d=typical_delay(field(phases,dir))) {
@@ -134,17 +182,17 @@ Snapshot read(const Json& report) {
         L" z "+std::to_wstring(e.received+e.timeouts)+L".",e.timeouts?Tone::warning:Tone::observed);
     const auto& inv=field(report,"inventory");
     auto cpu=string_value(value(field(inv,"system"),"cpu_model"));
-    if (!cpu.empty()) measured(s.checks[0],L"Odczytano parametry",cpu);
+    if (!cpu.empty()) measured(s.checks[check_computer],L"Odczytano parametry",cpu);
     auto nic=used_adapter(inv,t);
     if (nic) {
         auto kind=field(*nic,"type");
         auto label=kind==71?L"Wi-Fi":kind==6?L"Ethernet":kind==131?L"Tunel":L"Karta sieciowa";
-        measured(s.checks[1],label,string_value(value(*nic,"model")));
+        measured(s.checks[check_connection],label,string_value(value(*nic,"model")));
         for (const auto& radio:value(inv,"wifi")) {
             auto id=string_value(field(radio,"id")),matched=string_value(field(*nic,"id"));
             if (kind!=71 || id.empty() || _wcsicmp(id.c_str(),matched.c_str())) continue;
             const auto& signal=field(value(radio,"connection"),"signal_pct");
-            if (signal.is_number()) s.checks[1].value+=L" · "+number(signal.get<double>())+L"% sygnału";
+            if (signal.is_number()) s.checks[check_connection].value+=L" · "+number(signal.get<double>())+L"% sygnału";
         }
         const auto& neighbors=value(inv,"neighbors");
         if (neighbors.is_array()) {
@@ -154,18 +202,15 @@ Snapshot read(const Json& report) {
                 if (id.is_string() && field(row,"index")==field(*nic,"index")) macs.insert(id.get<std::string>());
             }
             std::wstring count=field(field(inv,"neighbors"),"status")=="partial"?L"≥ ":L"";
-            measured(s.checks[2],L"Widoczne urządzenia: "+count+std::to_wstring(macs.size()),
+            measured(s.checks[check_lan],L"Widoczne urządzenia: "+count+std::to_wstring(macs.size()),
                 L"Różne adresy urządzeń w pamięci sąsiadów Windows na karcie testu. Jeden komputer może używać wielu adresów.");
         }
         for (const auto& addr:value(*nic,"unicast")) {
             auto ip=string_value(field(addr,"ip"));
-            if (ip.empty()) continue;
-            auto& check=s.checks[ip.find(L':')==ip.npos?6:7];
+            if (ip.empty() || ip.find(L':')!=ip.npos) continue;
+            auto& check=s.checks[check_ipv4];
             if (check.tone==Tone::neutral) measured(check,ip,ip);
-            else {
-                check.detail+=L"\r\n"+ip;
-                if(link_local_v6(check.value) && !link_local_v6(ip))check.value=ip;
-            }
+            else check.detail+=L"\r\n"+ip;
         }
         const auto dns=display_dns(*nic);
         if(!dns.empty()){
@@ -173,24 +218,34 @@ Snapshot read(const Json& report) {
             for(const auto& address:dns)addresses+=address+L"\r\n";
             if(std::none_of(dns.begin(),dns.end(),[](const auto& address){return address.find(L':')!=address.npos;}))
                 addresses+=L"DNS IPv6 · Nieskonfigurowane";
-            measured(s.checks[5],dns.front()+(dns.size()>1?L"  +"+std::to_wstring(dns.size()-1):L""),
+            measured(s.checks[check_dns],dns.front()+(dns.size()>1?L"  +"+std::to_wstring(dns.size()-1):L""),
                 L"Jeden DNS IPv4 i maksymalnie dwa publiczne DNS IPv6 z karty testu\r\n"+addresses);
-        }else measured(s.checks[5],L"Nieskonfigurowane",L"Brak DNS IPv4 do pokazania.\r\nDNS IPv6 · Nieskonfigurowane.",Tone::neutral);
+        }else measured(s.checks[check_dns],L"Nieskonfigurowane",L"Brak DNS IPv4 do pokazania.\r\nDNS IPv6 · Nieskonfigurowane.",Tone::neutral);
     }
     auto observed=string_value(field(report,"observed_ip"));
-    if (!observed.empty()) {
-        auto& family=s.checks[observed.find(L':')==observed.npos?6:7];
+    if (!observed.empty() && observed.find(L':')==observed.npos) {
+        auto& family=s.checks[check_ipv4];
         auto detail=family.tone==Tone::observed ? L"Adresy lokalne karty\r\n"+family.detail+L"\r\n\r\n" : L"";
         measured(family,observed,detail+L"Adres klienta widziany przez węzeł HTTPS\r\n"+observed);
     }
-    if(link_local_v6(s.checks[7].value))s.checks[7].label=L"IPv6 · link-local";
-    if (e.complete) measured(s.checks[8],e.timeouts?L"Brak części odpowiedzi":L"Serwer odpowiedział",
+    const auto addresses=ipv6_addresses(report,nic);
+    if (!addresses.empty()) {
+        std::wstring details;
+        for (const auto& entry:addresses) {
+            if (!details.empty()) details+=L"\r\n\r\n";
+            details+=entry.label+L"\r\n"+entry.address+L"\r\n"+entry.detail;
+        }
+        const bool only_link_local=link_local_v6(addresses.front().address);
+        measured(s.checks[check_ipv6],only_link_local?L"Tylko link-local":addresses.front().address,
+                 std::move(details),only_link_local?Tone::neutral:Tone::observed);
+    } else measured(s.checks[check_ipv6],L"Brak adresu",L"Brak dostępnego adresu IPv6 w zapisanych danych pomiaru.",Tone::neutral);
+    if (e.complete) measured(s.checks[check_stability],e.timeouts?L"Brak części odpowiedzi":L"Serwer odpowiedział",
         s.metrics[4].detail+L" Krótka seria dotyczy wyłącznie chwili testu.",e.timeouts?Tone::warning:Tone::observed);
     if (!worst_delta && (s.metrics[5].tone==Tone::observed || s.metrics[6].tone==Tone::observed))
-        measured(s.checks[9],L"Brak porównania",L"Zapisano opóźnienia pod obciążeniem. Brakuje wystarczającej liczby odpowiedzi w spoczynku.",Tone::neutral);
+        measured(s.checks[check_latency],L"Brak porównania",L"Zapisano opóźnienia pod obciążeniem. Brakuje wystarczającej liczby odpowiedzi w spoczynku.",Tone::neutral);
     if (worst_delta) {
         auto delta=std::max(0.0,*worst_delta);
-        measured(s.checks[9],L"Wzrost o "+number(delta)+L" ms",L"Największy wzrost mediany czasu HTTPS względem spoczynku w zmierzonych kierunkach.",
+        measured(s.checks[check_latency],L"Wzrost o "+number(delta)+L" ms",L"Największy wzrost mediany czasu HTTPS względem spoczynku w zmierzonych kierunkach.",
                  delta>=20?Tone::warning:Tone::observed);
     }
     if (s.partial) {

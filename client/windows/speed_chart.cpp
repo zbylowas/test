@@ -47,7 +47,48 @@ POINT dial_point(int cx, int cy, double radius, double fraction) {
     return {cx + static_cast<LONG>(std::lround(radius * std::cos(angle))),
             cy - static_cast<LONG>(std::lround(radius * std::sin(angle)))};
 }
+}
 
+void paint_speed_needle(HDC dc, POINT center, int radius, int stroke, std::optional<double> progress,
+                        bool upload, COLORREF track) {
+    if (radius<=3*stroke) return;
+    const auto saved = SaveDC(dc);
+    const auto [cx,cy]=center;
+    const double fraction=std::clamp(progress.value_or(0),0.0,1.0);
+    const COLORREF accent = upload ? RGB(163,72,22) : RGB(0,109,99);
+    SelectObject(dc,GetStockObject(DC_BRUSH));
+    SelectObject(dc,GetStockObject(NULL_PEN));
+    for (int i=0; i<120; ++i) {
+        const double from=i/120.0, to=(i+1)/120.0;
+        POINT segment[]={dial_point(cx,cy,radius,from),dial_point(cx,cy,radius,to),
+                         dial_point(cx,cy,radius-stroke,to),dial_point(cx,cy,radius-stroke,from)};
+        SetDCBrushColor(dc,to<=fraction ? accent : track);
+        Polygon(dc,segment,4);
+    }
+    SelectObject(dc,GetStockObject(DC_PEN));
+    SetDCPenColor(dc,GetSysColor(COLOR_GRAYTEXT));
+    for (int i=0; i<=20; ++i) {
+        const double position=i/20.0;
+        const auto a=dial_point(cx,cy,radius-stroke*1.35,position);
+        const auto b=dial_point(cx,cy,radius-stroke*(i%5==0 ? 2.6 : 2.0),position);
+        MoveToEx(dc,a.x,a.y,nullptr); LineTo(dc,b.x,b.y);
+    }
+    if (progress) {
+        const auto tip=dial_point(cx,cy,radius-stroke*2.8,fraction);
+        const double angle=(1-fraction)*std::numbers::pi;
+        const LONG dx=static_cast<LONG>(std::lround(stroke*.5*std::sin(angle)));
+        const LONG dy=static_cast<LONG>(std::lround(stroke*.5*std::cos(angle)));
+        POINT needle[]={{cx-dx,cy-dy},tip,{cx+dx,cy+dy}};
+        const COLORREF ink=upload ? RGB(128,51,18) : RGB(0,72,86);
+        SetDCBrushColor(dc,ink); SetDCPenColor(dc,ink);
+        Polygon(dc,needle,3);
+        const int hub=std::max(2,stroke*3/4);
+        Ellipse(dc,cx-hub,cy-hub,cx+hub+1,cy+hub+1);
+    }
+    if (saved) RestoreDC(dc,saved);
+}
+
+namespace {
 void dial(HDC dc, int width, int height, HFONT normal, HFONT heading, bool upload,
           double scale, double speed, const std::wstring& text) {
     const int cx = width / 2, cy = height - 60;
@@ -59,37 +100,8 @@ void dial(HDC dc, int width, int height, HFONT normal, HFONT heading, bool uploa
     RECT title{0,4,width,31};
     DrawTextW(dc,caption,-1,&title,DT_CENTER|DT_SINGLELINE|DT_NOPREFIX);
     const bool measured = speed >= 0 && scale > 0;
-    const double fraction = measured ? std::clamp(speed/scale,0.0,1.0) : 0.0;
-    const COLORREF accent = upload ? RGB(163,72,22) : RGB(0,109,99);
-    // Fill the arc in narrow segments so the active part tracks the same scale as the needle.
-    SelectObject(dc,GetStockObject(DC_BRUSH));
-    SelectObject(dc,GetStockObject(NULL_PEN));
-    for (int i=0; i<120; ++i) {
-        const double from=i/120.0, to=(i+1)/120.0;
-        POINT segment[]={dial_point(cx,cy,radius,from),dial_point(cx,cy,radius,to),
-                         dial_point(cx,cy,radius-8,to),dial_point(cx,cy,radius-8,from)};
-        SetDCBrushColor(dc,to<=fraction ? accent : GetSysColor(COLOR_3DFACE));
-        Polygon(dc,segment,4);
-    }
-    SelectObject(dc,GetStockObject(DC_PEN));
-    SetDCPenColor(dc,GetSysColor(COLOR_GRAYTEXT));
-    for (int i=0; i<=20; ++i) {
-        const double position=i/20.0;
-        const auto a=dial_point(cx,cy,radius-11,position);
-        const auto b=dial_point(cx,cy,radius-(i%5==0 ? 21 : 16),position);
-        MoveToEx(dc,a.x,a.y,nullptr); LineTo(dc,b.x,b.y);
-    }
-    if (measured) {
-        const auto tip=dial_point(cx,cy,radius-23,fraction);
-        const double angle=(1-fraction)*std::numbers::pi;
-        const LONG dx=static_cast<LONG>(std::lround(4*std::sin(angle)));
-        const LONG dy=static_cast<LONG>(std::lround(4*std::cos(angle)));
-        POINT needle[]={{cx-dx,cy-dy},tip,{cx+dx,cy+dy}};
-        const COLORREF ink=upload ? RGB(128,51,18) : RGB(0,72,86);
-        SetDCBrushColor(dc,ink); SetDCPenColor(dc,ink);
-        Polygon(dc,needle,3);
-        Ellipse(dc,cx-6,cy-6,cx+7,cy+7);
-    }
+    paint_speed_needle(dc,{cx,cy},radius,8,measured?std::optional<double>{speed/scale}:std::nullopt,
+                       upload,GetSysColor(COLOR_3DFACE));
     if (scale>0) {
         std::wostringstream end; end << std::setprecision(5) << scale;
         RECT lo{cx-radius-20,cy+3,cx-radius+20,cy+25},hi{cx+radius-29,cy+3,cx+radius+29,cy+25};

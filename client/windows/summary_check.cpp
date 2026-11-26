@@ -42,7 +42,8 @@ int main() {
     samples.back()["family"]=6;samples.back()["target"]="2001:db8::22";require(route_page(samples).rows.size()==2,"mixed IP series");
     auto empty=read(nullptr);
     for(const auto& f:empty.checks) require(f.tone==Tone::neutral,"empty diagnostic classified");
-    require(empty.metrics[0].value==L"—","absent speed shown as zero");
+    require(empty.metrics[0].value==L"—" && !empty.speed_mbps[0],"absent speed shown as zero");
+    require(empty.checks.size()==9 && empty.checks[check_dns].label==L"DNS","obsolete diagnostic card");
     auto points=rates(Json::array({{0,0},{100,12500},{250,50000}}));
     require(points.size()==2 && std::abs(points[0].mbps-1)<1e-8 && std::abs(points[1].mbps-2)<1e-8,"counter deltas");
     for(auto rows:{Json::array({{0,1},{0,2}}),Json::array({{0,12},{10,9}}),Json::array({{0,nullptr}})})
@@ -55,17 +56,21 @@ int main() {
         {"transfers",{{"download",transfer},{"upload",transfer}}},{"phases",Json::object()}};
     Json report={{"throughput",t},{"synchronized",false}};
     auto legacy=read(report);
-    require(legacy.recorded && legacy.metrics[0].value==L"1" && legacy.lines[0].empty(),"old report");
-    require(legacy.metrics[2].value==L"—" && legacy.checks[7].tone==Tone::neutral,"fabricated result");
+    require(legacy.recorded && legacy.metrics[0].value==L"1" && legacy.speed_mbps[0]==1 && legacy.lines[0].empty(),"old report");
+    require(legacy.metrics[2].value==L"—" && legacy.checks[check_ipv6].tone==Tone::neutral,"fabricated result");
     report["throughput"]["reservation_local_ip"]={{"value",ip}};
     report["observed_ip"]="203.0.113.44";
-    Json nic={{"unicast",{{"value",Json::array({{{"ip",ip}},{{"ip","fe80::10"}},{{"ip","2001:db8::10"}}})}}},
+    Json nic={{"unicast",{{"value",Json::array({{{"ip",ip}},{{"ip","fe80::10%2"}},{{"ip","fd00::10"}},{{"ip","2001:db8::10"}}})}}},
         {"dns",{{"value",Json::array({"192.0.2.53","198.51.100.53","fe80::53","fd00::53","2001:db8::53"})}}},{"model",{{"value","Fixture NIC"}}}};
     report["inventory"]["interfaces"]["value"]=Json::array({nic});
     auto internet=read(report);
-    require(internet.checks[5].value==L"192.0.2.53","DNS address missing");
-    require(internet.checks[6].value==L"203.0.113.44" && internet.checks[7].value==L"2001:db8::10","IP addresses not shown");
+    require(internet.checks[check_dns].value==L"192.0.2.53","DNS address missing");
+    require(internet.checks[check_ipv4].value==L"203.0.113.44" &&
+            internet.checks[check_ipv6].value==L"2001:db8::10","IP addresses not shown");
     auto internet_page=detail_page(5,report,internet);
+    require(internet_page.rows[3].cells[1]==L"2001:db8::10" &&
+            internet_page.rows[4].cells[0]==L"IPv6 · prywatny (ULA)" &&
+            internet_page.rows[5].cells[1]==L"fe80::10%2","IPv6 rows not ordered by scope");
     bool local_ip=false,dns=false,v6_status=false;
     for(const auto& row:internet_page.rows){
         local_ip|=row.cells[0]==L"IPv4 · karta" && row.cells[1]==L"192.0.2.10";
@@ -75,6 +80,14 @@ int main() {
         v6_status|=row.cells[0]==L"DNS IPv6" && row.cells[1]==L"Nieskonfigurowane";
     }
     require(local_ip && dns && v6_status,"Internet view missing address or IPv6 DNS status");
+    auto only_local=report;
+    only_local["inventory"]["interfaces"]["value"][0]["unicast"]["value"]=Json::array({{{"ip",ip}},{{"ip","fe80::10%2"}}});
+    require(read(only_local).checks[check_ipv6].value==L"Tylko link-local","local IPv6 confused with internet address");
+    only_local["inventory"]["interfaces"]["value"].push_back(
+        {{"oper_status",1},{"type",6},{"unicast",{{"value",Json::array({{{"ip","2001:db8::12"},{"dad_state",4}}})}}}});
+    require(read(only_local).checks[check_ipv6].value==L"2001:db8::12","IPv6 on other active card missing");
+    only_local["observed_ip"]="2001:db8::20";
+    require(read(only_local).checks[check_ipv6].value==L"2001:db8::20","address observed by HTTPS not prioritized");
     auto& node=report["throughput"]["host_pings"]["node"];
     node={{"target",ip},{"planned",5},{"reason",nullptr},{"samples",{ping,ping,timeout,ping,ping}}};
     auto result=read(report);
@@ -90,6 +103,6 @@ int main() {
     auto& load=report["throughput"]["phases"];
     Json sample={{"error",nullptr},{"ms",5}};
     for(int i=0;i<5;++i) {load["baseline"].push_back(sample);load["upload"].push_back({{"error",nullptr},{"ms",50}});}
-    require(read(report).checks[9].tone==Tone::warning,"load increase");
+    require(read(report).checks[check_latency].tone==Tone::warning,"load increase");
     std::cout<<"Summary metrics, legacy reader, trace integrity, partial and unavailable states passed\n";
 }

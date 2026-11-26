@@ -127,7 +127,7 @@ DetailPage detail_page(int page,const Json& report,const Snapshot& s){
             for(auto& d:delays){auto& v=field(d,"ms");r.points.push_back(v.is_number()?std::optional<double>(v.get<double>()):std::nullopt);}
         }
     }else if(page==2){
-        const auto& sys=field(inv,"system");fact(p,s.checks[0]);
+        const auto& sys=field(inv,"system");fact(p,s.checks[check_computer]);
         metric(p,L"Procesor",value(reading(sys,"cpu_model")),L"Model odczytany przez Windows.");
         metric(p,L"Procesory logiczne",value(field(sys,"logical_processors")),L"Liczba procesorów logicznych widzianych przez system.");
         auto& ram=reading(sys,"memory");
@@ -135,11 +135,11 @@ DetailPage detail_page(int page,const Json& report,const Snapshot& s){
         for(auto& i:reading(inv,"interfaces"))if(field(i,"oper_status")==1)
             metric(p,L"Aktywna karta",value(reading(i,"model")),L"Sterownik · "+value(reading(i,"driver"))+L"   MTU · "+value(field(i,"mtu")));
     }else if(page==3){
-        for(int i:{1,2,5,6,7})fact(p,s.checks[i]);
+        for(auto i:{check_connection,check_lan,check_dns,check_ipv4,check_ipv6})fact(p,s.checks[i]);
         if(nic)for(auto& n:reading(inv,"neighbors"))if(field(n,"index")==field(*nic,"index"))
             metric(p,L"Sąsiad na karcie testu",value(field(n,"ip")),L"Wpis w pamięci sąsiadów Windows. Producent · "+value(reading(n,"vendor")));
     }else if(page==4){
-        fact(p,s.checks[1]);
+        fact(p,s.checks[check_connection]);
         for(auto& r:reading(inv,"wifi")){
             const auto& c=reading(r,"connection");auto& sig=field(c,"signal_pct");
             metric(p,L"Sygnał",sig.is_number()?number(sig.get<double>())+L"%":L"Brak odczytu",L"Jakość sygnału zgłoszona przez Windows w chwili testu.");
@@ -150,6 +150,9 @@ DetailPage detail_page(int page,const Json& report,const Snapshot& s){
             metric(p,L"Radio Wi-Fi",L"Brak danych",L"Windows nie udostępnił danych o połączeniu bezprzewodowym w tym raporcie.");
     }else if(page==5){
         for(int i:{2,3,4})fact(p,s.metrics[i],i==4?L" %":L" ms");
+        const auto addresses=ipv6_addresses(report,nic);
+        for (const auto& entry:addresses) metric(p,entry.label,entry.address,entry.detail);
+        if (addresses.empty()) fact(p,s.checks[check_ipv6]);
         for(auto k:{"gateway","node"}){
             const auto& h=field(field(t,"host_pings"),k);if(!h.is_object())continue;
             double sum=0;
@@ -181,9 +184,7 @@ DetailPage detail_page(int page,const Json& report,const Snapshot& s){
                 const auto& ip=field(local,"ip");
                 if(!ip.is_string()) continue;
                 auto address=value(ip);
-                const bool v6=address.find(L':')!=address.npos;
-                metric(p,v6?L"IPv6 · karta":L"IPv4 · karta",address,
-                    v6 && link_local_v6(address)?L"Adres łącza lokalnego karty.":L"Adres odczytany z karty pomiarowej.");
+                if(address.find(L':')==address.npos) metric(p,L"IPv4 · karta",address,L"Adres odczytany z karty pomiarowej.");
             }
         }
         const auto& peer=field(t,"peer");
@@ -191,11 +192,10 @@ DetailPage detail_page(int page,const Json& report,const Snapshot& s){
         const auto& seen=field(report,"observed_ip");
         if(seen.is_string()){
             auto ip=value(seen);
-            metric(p,ip.find(L':')==ip.npos?L"IPv4 · widziany przez serwer":L"IPv6 · widziany przez serwer",
-                ip,L"Adres połączenia zapisany przez serwer pomiarowy HTTPS.");
+            if(ip.find(L':')==ip.npos) metric(p,L"IPv4 · widziany przez serwer",ip,L"Adres połączenia zapisany przez serwer pomiarowy HTTPS.");
         }else metric(p,L"IP widziany przez serwer",L"Brak danych",L"Serwer nie podał adresu klienta w ostatnim raporcie.");
-        for(int i:{5,6,7})if((i!=5 || !nic) && s.checks[i].tone==Tone::neutral)fact(p,s.checks[i]);
-        fact(p,s.checks[9]);
+        for(auto i:{check_dns,check_ipv4})if((i!=check_dns || !nic) && s.checks[i].tone==Tone::neutral)fact(p,s.checks[i]);
+        fact(p,s.checks[check_latency]);
     }
     return p;
 }

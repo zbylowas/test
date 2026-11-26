@@ -186,12 +186,12 @@ def run(exe):
             win = wait(lambda: find_window(process.pid))
             get = lambda control: user.GetDlgItem(win, control)
             click = lambda control: user.SendMessageW(get(control), 0x00F5, 0, 0)
-            wait(lambda: user.IsWindowEnabled(get(101)))
+            wait(lambda: user.IsWindowEnabled(get(101)) and user.IsWindowVisible(get(336)))
             assert not user.IsWindowVisible(get(112))
-            assert user.IsWindowVisible(get(336))
             assert user.SendMessageW(get(106), 0x0146, 0, 0) == 2
             assert "—" in caption(get(240))
             assert "Nie przetestowano" in caption(get(253))
+            assert not get(259)
             click(250)
             details = wait(lambda: find_window(process.pid, "VipNetDetailsWindow"))
             popup_text = user.GetDlgItem(details, 401)
@@ -220,6 +220,9 @@ def run(exe):
                     user.CloseClipboard()
             user.SendMessageW(user.GetDlgItem(details, 403), 0x00F5, 0, 0)
             wait(lambda: not find_window(process.pid, "VipNetDetailsWindow"))
+            click(201)
+            assert user.IsWindowVisible(get(240)) and user.IsWindowVisible(get(241))
+            assert bounds(get(241)).bottom <= bounds(get(310)).top
             for page in (202, 203):
                 click(page)
                 wait(lambda: user.IsWindowVisible(get(333)) and user.IsWindowEnabled(get(333)))
@@ -232,7 +235,7 @@ def run(exe):
 
             for width, height in ((960, 640), (1366, 768), (1920, 1080)):
                 user.SetWindowPos(win, 0, 0, 0, width, height, 0x16)
-                rows = [bounds(get(i)) for i in (*range(240, 247), *range(250, 260), 261)]
+                rows = [bounds(get(i)) for i in (*range(240, 247), *range(250, 259), 261)]
                 for row in rows:
                     assert row.right > row.left and row.bottom > row.top
                     assert row.bottom <= bounds(get(111)).top

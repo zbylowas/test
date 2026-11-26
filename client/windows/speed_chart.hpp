@@ -3,7 +3,11 @@
 #include <chrono>
 #include <cstdint>
 #include <deque>
+#include <optional>
 #include <string>
+
+void paint_speed_needle(HDC dc, POINT center, int radius, int stroke, std::optional<double> fraction,
+                        bool upload, COLORREF track);
 
 class SpeedChart {
 public:

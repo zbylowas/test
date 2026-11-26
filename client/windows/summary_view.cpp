@@ -1,5 +1,6 @@
 #include "summary_view.hpp"
 #include "desktop_brand.hpp"
+#include "speed_chart.hpp"
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
@@ -11,7 +12,7 @@ constexpr COLORREF bg=RGB(243,243,243),surface=RGB(255,255,255),ink=RGB(32,32,32
     border=RGB(224,224,224),accent=RGB(0,103,192),green=RGB(16,124,16),amber=RGB(157,93,0),red=RGB(196,43,28);
 constexpr std::array<const wchar_t*,12> sections{L"Podsumowanie",L"Prędkość internetu",L"Komputer",L"Sieć lokalna",L"Wi-Fi",L"Internet",L"Gry online",L"MTR i Traceroute",L"Monitoring",L"Historia",L"Raporty",L"Ustawienia"};
 constexpr std::array<wchar_t,12> nav_icons{0xe80f,0xe945,0xe7f8,0xe968,0xe701,0xe774,0xe7fc,0xe8ab,0xe9d9,0xe81c,0xe8a5,0xe713};
-constexpr std::array<wchar_t,10> check_icons{0xe7f8,0xe701,0xe968,0xe839,0xe774,0xe12b,0xe968,0xe968,0xe9d9,0xe916};
+constexpr std::array<wchar_t,check_count> check_icons{0xe7f8,0xe701,0xe968,0xe839,0xe12b,0xe968,0xe968,0xe9d9,0xe916};
 constexpr std::array<const wchar_t*,7> units{L"Mb/s",L"Mb/s",L"ms",L"ms",L"%",L"ms",L"ms"};
 COLORREF tone_color(Tone t) {
     if (t==Tone::warning) return amber;
@@ -41,10 +42,11 @@ void line(HDC dc,int x1,int y1,int x2,int y2,COLORREF c) {
     SelectObject(dc,GetStockObject(DC_PEN));SetDCPenColor(dc,c);
     MoveToEx(dc,x1,y1,nullptr);LineTo(dc,x2,y2);
 }
-LRESULT CALLBACK hover_card(HWND w,UINT msg,WPARAM a,LPARAM b,UINT_PTR id,DWORD_PTR owner) {
-    if (msg==WM_MOUSEMOVE) reinterpret_cast<View*>(owner)->hover(w,GET_X_LPARAM(b));
-    if (msg==WM_NCDESTROY) RemoveWindowSubclass(w,hover_card,id);
-    return DefSubclassProc(w,msg,a,b);
+double dial_ceiling(double speed) {
+    if (!std::isfinite(speed) || speed<=10) return 10;
+    const double decade=std::pow(10,std::floor(std::log10(speed)));
+    for(double step:{1.0,2.0,5.0}) if(speed<=step*decade) return step*decade;
+    return 10*decade;
 }
 int CALLBACK font_found(const LOGFONTW*,const TEXTMETRICW*,DWORD,LPARAM found) {
     *reinterpret_cast<bool*>(found)=true;return 0;
@@ -94,7 +96,6 @@ void View::create(HWND parent,std::wstring origin,std::wstring brand) {
     report_=button(L"Pełny raport",report_id);copy_=button(L"Kopiuj kod do panelu",copy_id);
     back_=button(L"Podsumowanie",back_id);
     for (size_t i=0;i<metrics_.size();++i) metrics_[i]=button(L"",metric_id+static_cast<int>(i));
-    for (size_t i=0;i<2;++i) SetWindowSubclass(metrics_[i],hover_card,1,reinterpret_cast<DWORD_PTR>(this));
     for (size_t i=0;i<checks_.size();++i) checks_[i]=button(L"",check_id+static_cast<int>(i));
     finding_=button(L"",finding_id);footer_=child(L"STATIC",L"",SS_OWNERDRAW,111);
     detail_=child(L"EDIT",L"",WS_TABSTOP|ES_MULTILINE|ES_READONLY|WS_VSCROLL|ES_AUTOVSCROLL,112);
@@ -177,9 +178,12 @@ void View::layout() {
     move(measurement_,x,y,area/2,28,home_page);
     move(time_,x+area/2,y,area/2,28,home_page);
     y+=34;
-    int chart_height=std::clamp((height-405)/2,100,182), gap=8,half=(area-gap)/2;
-    move(metrics_[0],x,y,half,chart_height,home_page);move(metrics_[1],x+half+gap,y,area-half-gap,chart_height,home_page);
-    y+=chart_height+gap;
+    int dial_height=std::clamp((height-405)/2,100,182), gap=8,half=(area-gap)/2;
+    const bool speed_page=workspace_ && page_==1;
+    const int dial_top=speed_page?(small?83:100):y;
+    move(metrics_[0],x,dial_top,half,dial_height,home_page || speed_page);
+    move(metrics_[1],x+half+gap,dial_top,area-half-gap,dial_height,home_page || speed_page);
+    y+=dial_height+gap;
     int strip=small?60:74;
     for (int i=0;i<5;++i) {
         int a=area*i/5,b=area*(i+1)/5;
@@ -190,12 +194,14 @@ void View::layout() {
     const bool narrow_actions=(page_==7 || page_==9 || page_==10) && area<728;
     move(report_,home_page?x+area-130:x+(narrow_actions?152:190),home_page?y:height-bar-46,narrow_actions?118:130,home_page?30:32);
     y+=34;
-    int status_h=std::clamp((height-bar-y-(small?43:60))/5,26,52);
-    for (int i=0;i<10;++i) {
+    constexpr int check_rows=static_cast<int>((check_count+1)/2);
+    int status_h=std::clamp((height-bar-y-(small?43:60))/check_rows,26,52);
+    for (int i=0;i<static_cast<int>(check_count);++i) {
         int col=i%2;
-        move(checks_[i],x+col*(half+gap),y+(i/2)*status_h,col?area-half-gap:half,status_h-2,home_page);
+        int card_width=i==static_cast<int>(check_count)-1?area:col?area-half-gap:half;
+        move(checks_[i],x+col*(half+gap),y+(i/2)*status_h,card_width,status_h-2,home_page);
     }
-    y+=5*status_h+4;
+    y+=check_rows*status_h+4;
     move(finding_,x,y,area,std::clamp(height-bar-y-4,24,44),home_page);
     bool route=workspace_ && page_>=6 && page_<=8;
     bool games=route && page_==6, mtr=route && page_==7;
@@ -217,7 +223,8 @@ void View::layout() {
     move(process_test_,x,top,190,32,workspace_ && page_==2 && busy_);
     if(workspace_ && page_==2 && busy_)top+=40;
     int panel_h=small?94:116;
-    bool cards=workspace_ && !table_data_.rows.empty() && (page_<=5 || page_==6 || page_==8);
+    if(speed_page)top+=dial_height+gap;
+    bool cards=workspace_ && !speed_page && !table_data_.rows.empty() && (page_<=6 || page_==8);
     for(int i=0;i<3;++i){
         int left=area*i/3,right=area*(i+1)/3;
         move(facts_[i],x+left,top,right-left-6,small?51:65,cards && static_cast<size_t>(i)<table_data_.rows.size());
@@ -247,7 +254,12 @@ void View::controls(bool busy,bool has_code,bool has_details) {
 }
 bool View::capacity() const {return SendMessageW(profile_,CB_GETCURSEL,0,0)==0;}
 void View::phase(const std::wstring& label) {operation_=label;refresh_labels();}
-void View::update(const Snapshot& s) {data_=s;refresh_labels();}
+void View::update(const Snapshot& s) {
+    data_=s;
+    dial_limit_=dial_ceiling(std::max(s.speed_mbps[0].value_or(0),s.speed_mbps[1].value_or(0)));
+    refresh_labels();
+    for (size_t i=0;i<2;++i) InvalidateRect(metrics_[i],nullptr,FALSE);
+}
 void View::refresh_labels() {
     set(sub_,workspace_?table_data_.subtitle:page_?L"Szczegóły diagnostyczne":operation_.empty()?(data_.recorded?(data_.partial?L"Pomiar częściowy":L"Pomiar zakończony"):L"Gotowy do pomiaru"):operation_);
     set(time_,data_.recorded?L"Ostatni test   "+data_.last:data_.last);
@@ -272,12 +284,16 @@ void View::refresh_labels() {
     set(footer_,context+L"   ·   "+(busy_?L"Pomiar w toku":operation_.empty()?L"Gotowy":operation_)+L"   |   "+origin_+L"   ·   "+desktop_version);
     InvalidateRect(footer_,nullptr,FALSE);
 }
-void View::live(size_t dir,const Json& counters) {
+void View::live(size_t dir,const Json& counters,double profile_mbps) {
     auto points=rates(counters);if (points.empty() || (data_.lines[dir].size()==points.size() && !data_.lines[dir].empty())) return;
     data_.lines[dir]=std::move(points);
-    auto& f=data_.metrics[dir];f.value=number(data_.lines[dir].back().mbps);
+    auto mbps=data_.lines[dir].back().mbps;
+    data_.speed_mbps[dir]=mbps;
+    dial_limit_=std::max(dial_limit_,dial_ceiling(std::max(profile_mbps,mbps)));
+    auto& f=data_.metrics[dir];f.value=number(mbps);
     f.detail=L"Chwilowy transfer aplikacji, obliczony z przyrostu licznika bajtów i czasu między odczytami.";
-    refresh_labels();InvalidateRect(metrics_[dir],nullptr,FALSE);
+    refresh_labels();
+    for (size_t i=0;i<2;++i) InvalidateRect(metrics_[i],nullptr,FALSE);
 }
 void View::scroll(int command) {
     if (!scroll_limit_) return;
@@ -371,36 +387,28 @@ bool View::draw(const DRAWITEMSTRUCT& item) {
         if (i<2) {
             glyph(i?0xe74a:0xe74b,accent,12,8,24,23);
             text(1,muted,41,7,w-16,32,f.label);
-            int chart_top=std::min(83,h-34);
-            text(4,ink,17,30,w-15,chart_top,f.value+(f.value==L"—"?L"":L" "+std::wstring(units[i])));
-            const auto& pts=data_.lines[i];
-            if (pts.empty()) text(5,muted,17,chart_top,w-14,h-6,L"Brak próbek wykresu");
-            else {
-                double peak=0;for(auto p:pts) peak=std::max(peak,p.mbps);
-                auto ceiling=std::max(1.0,std::ceil(peak/10.0)*10.0);
-                int left=17,right=w-57,top=chart_top+1,bottom=h-19;
-                auto x=[&](double t){return left+static_cast<int>((right-left)*t/std::max(.001,pts.back().seconds));};
-                auto y=[&](double n){return bottom-static_cast<int>((bottom-top)*n/ceiling);};
-                std::vector<POINT> coords;
-                for(auto p:pts) coords.push_back({px(x(p.seconds)),px(y(p.mbps))});
-                auto polygon=coords;polygon.push_back({coords.back().x,px(bottom)});polygon.push_back({coords.front().x,px(bottom)});
-                SelectObject(dc,GetStockObject(NULL_PEN));SelectObject(dc,GetStockObject(DC_BRUSH));SetDCBrushColor(dc,RGB(229,241,250));
-                Polygon(dc,polygon.data(),static_cast<int>(polygon.size()));
-                for (int j=0;j<=2;++j) {int sy=px(top+(bottom-top)*j/2);line(dc,px(left),sy,px(right),sy,border);}
-                for(int j=1;j<=3;++j){int sx=px(left+(right-left)*j/4);line(dc,sx,px(top),sx,px(bottom),RGB(234,234,234));}
-                SelectObject(dc,GetStockObject(DC_PEN));SetDCPenColor(dc,accent);Polyline(dc,coords.data(),static_cast<int>(coords.size()));
-                text(5,muted,right+4,top-8,w-4,top+9,number(ceiling));
-                text(5,muted,left,bottom,right,h,L"0 s");
-                text(5,muted,left,bottom,right,h,number(pts.back().seconds)+L" s",DT_RIGHT);
+            const int dial_left=w*43/100;
+            const int readout_top=(h+28)/2-30;
+            text(w<290?3:4,ink,17,readout_top,dial_left,readout_top+40,f.value);
+            const auto speed=data_.speed_mbps[i];
+            text(5,muted,17,readout_top+40,dial_left,readout_top+58,
+                 speed?(data_.recorded?L"Średnia · Mb/s":L"Chwilowa · Mb/s"):L"Mb/s");
+            const int cx=(dial_left+w-12)/2,cy=std::min(h-21,(h+28)/2+33);
+            const int radius=std::min((w-dial_left-37)/2,cy-33);
+            if (radius>=24) {
+                paint_speed_needle(dc,{px(cx),px(cy)},px(radius),px(7),
+                    speed?std::optional<double>{*speed/dial_limit_}:std::nullopt,i==1,RGB(224,232,237));
+                text(5,muted,cx-radius-11,cy+3,cx,h-1,L"0");
+                text(5,muted,cx,cy+3,w-7,h-1,number(dial_limit_),DT_RIGHT);
             }
         } else {
             text(0,muted,10,4,w-5,h/2,f.label);
             text(2,ink,10,h/2-4,w-5,h-4,f.value+(f.value==L"—"?L"":L" "+std::wstring(units[i])));
         }
-    } else if (id>=check_id && id<check_id+10) {
+    } else if (id>=check_id && id<check_id+static_cast<int>(check_count)) {
         const int i=id-check_id;const auto& f=data_.checks[i];panel();
         glyph(check_icons[i],muted,8,0,24,h);
-        if(i>=5 && i<=7 && f.value.size()>26){
+        if((i==check_dns || i==check_ipv4 || i==check_ipv6) && f.value.size()>26){
             text(0,ink,38,1,w-25,h/2+2,f.label);
             text(0,tone_color(f.tone),38,h/2,w-25,h-1,f.value);
         }else{
@@ -430,16 +438,6 @@ bool View::draw(const DRAWITEMSTRUCT& item) {
         auto r=rect(3,3,w-3,h-3);DrawFocusRect(dc,&r);
     }
     BitBlt(item.hDC,0,0,ww,hh,dc,0,0,SRCCOPY);SelectObject(dc,old);DeleteObject(bmp);DeleteDC(dc);return true;
-}
-void View::hover(HWND card,int x) {
-    const int dir=GetDlgCtrlID(card)-metric_id;
-    const auto& line=data_.lines[dir];
-    if (line.empty()) return;
-    RECT r{};GetClientRect(card,&r);
-    const auto fraction=std::clamp((x-px(17))/static_cast<double>(std::max(1L,r.right-px(74))),0.0,1.0);
-    auto it=std::lower_bound(line.begin(),line.end(),fraction*line.back().seconds,
-                             [](const Point& p,double t){return p.seconds<t;});
-    if (it!=line.end()) hint(card,number(it->seconds)+L" s   ·   "+number(it->mbps)+L" Mb/s");
 }
 void View::choices(int id,const std::vector<std::wstring>& names,int select){
     auto w=GetDlgItem(parent_,id);SendMessageW(w,CB_RESETCONTENT,0,0);
