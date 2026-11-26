@@ -65,7 +65,7 @@ def public_notice(member):
     return member
 
 
-def package(exe, output, json_license, zlib_license, gui=None, web=None, require_signature=False, project_proof=False, publisher_sha256=None):
+def package(exe, output, json_license, zlib_license, gui=None, web=None, require_signature=False, project_proof=False, publisher_sha256=None, installer=None):
     gui = gui or exe.with_name("VIP-NET-Diagnostyka.exe")
     with tempfile.TemporaryDirectory(prefix="vipnet-release-") as folder:
         # Verify and package immutable copies in the publishing user's private temp directory.
@@ -74,10 +74,10 @@ def package(exe, output, json_license, zlib_license, gui=None, web=None, require
         shutil.copyfile(exe, private_exe)
         shutil.copyfile(gui, private_gui)
         _package_snapshot(private_exe, private_gui, output, json_license, zlib_license, web,
-                          require_signature, project_proof or require_signature, publisher_sha256)
+                          require_signature, project_proof or require_signature, publisher_sha256, installer)
 
 
-def _package_snapshot(exe, gui, output, json_license, zlib_license, web, require_signature, project_proof, publisher_sha256):
+def _package_snapshot(exe, gui, output, json_license, zlib_license, web, require_signature, project_proof, publisher_sha256, installer):
     if require_signature and not publisher_sha256:
         raise ValueError("A pinned public publisher certificate SHA-256 is required")
     def pe_version(path):
@@ -85,8 +85,8 @@ def _package_snapshot(exe, gui, output, json_license, zlib_license, web, require
             "(Get-Item -LiteralPath $env:VIPNET_RELEASE_FILE).VersionInfo.ProductVersion"],
             env=dict(os.environ, VIPNET_RELEASE_FILE=str(path)), text=True).strip()
     version = pe_version(exe)
-    if version != "1.0.1":
-        raise ValueError("the tested v1.0.1 executable is required")
+    if version != "1.1.0":
+        raise ValueError("the tested v1.1.0 executable is required")
     web = web or ROOT / "frontend/dist"
     if not (web / "index.html").is_file() or not any((web / "assets").glob("*.js")):
         raise ValueError("build the portal with pnpm run build first")
@@ -145,6 +145,10 @@ def _package_snapshot(exe, gui, output, json_license, zlib_license, web, require
     assets = {p.relative_to(web).as_posix():p for p in sorted(web.rglob("*")) if p.is_file()}
     assets["VIP-NET-Diagnostyka.exe"] = gui
     assets["windows-release.json"] = metadata
+    if installer:
+        public_installer = output / "VIP-NET-Diagnostyka-Setup.msi"
+        shutil.copyfile(installer, public_installer)
+        assets[public_installer.name] = public_installer
     notices = {"LICENSE": ROOT / "LICENSE", "licenses/zlib.txt": zlib_license,
                "licenses/nlohmann-json.txt": json_license, "licenses/vue.txt": ROOT / "licenses/vue.txt"}
     with tarfile.open(server, "x:gz") as archive:
@@ -209,7 +213,10 @@ def _package_snapshot(exe, gui, output, json_license, zlib_license, web, require
                 raise ValueError(f"invalid server archive member {member}")
     public_exe = output / "VIP-NET-Diagnostyka.exe"
     public_exe.write_bytes(gui.read_bytes())
-    checksums = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in (win, server, public_exe)}
+    downloads = [win, server, public_exe]
+    if installer:
+        downloads.append(public_installer)
+    checksums = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in downloads}
     (output / "SHA256SUMS.txt").write_text(
         "".join(f"{digest}  {name}\n" for name, digest in checksums.items()), encoding="utf-8"
     )
@@ -220,6 +227,7 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)
     for flag in ("exe", "output", "json-license", "zlib-license"):
         p.add_argument("--" + flag, required=True, type=Path)
+    p.add_argument("--installer", type=Path, help="Per-user MSI from build_windows_installer.ps1")
     p.add_argument("--require-signature", action="store_true")
     p.add_argument("--project-proof", action="store_true")
     p.add_argument("--publisher-sha256", help="Pinned SHA-256 of the approved public Authenticode certificate (DER)")
@@ -230,5 +238,6 @@ if __name__ == "__main__":
         a.json_license.resolve(strict=True),
         a.zlib_license.resolve(strict=True),
         require_signature=a.require_signature, project_proof=a.project_proof,
+        installer=a.installer.resolve(strict=True) if a.installer else None,
         publisher_sha256=a.publisher_sha256.lower() if a.publisher_sha256 else None,
     )

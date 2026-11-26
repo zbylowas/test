@@ -1,5 +1,11 @@
 # Historia wydań
 
+## 1.1.0
+
+- Widok Komputer ma test z ruchem procesów. Aplikacja pokazuje pobieranie i wysyłanie osobno dla każdego PID zaobserwowanego przez Windows oraz sumę ruchu innych procesów. Podczas testu podaje bieżące wartości, po zakończeniu średnią.
+- Instalator MSI instaluje program w profilu bieżącego użytkownika i dodaje skrót w menu Start. Zainstalowana kopia używa podpisanej aktualizacji aplikacji. Wydanie przenośne jest dostępne osobno.
+- DNS pokazuje jeden skonfigurowany serwer IPv4 i maksymalnie dwa publiczne serwery IPv6. W przypadku samych adresów lokalnych DNS IPv6 otrzymuje stan „Nieskonfigurowane”.
+
 ## 1.0.1 · 2026-11-26
 
 - Historia rozpoznaje przerwanie także w starszych raportach zatrzymanych podczas pingów. Nowe raporty lokalne zachowują stan zapisany przez kolejkę.

@@ -51,7 +51,7 @@ class Channel {
 public:
     std::string peer;
     Channel(const std::string& id, const std::wstring& origin)
-        : session_(handle(WinHttpOpen(L"VIP-NET transfer/1.0.1", WINHTTP_ACCESS_TYPE_NO_PROXY, nullptr, nullptr, 0))),
+        : session_(handle(WinHttpOpen(L"VIP-NET transfer/1.1.0", WINHTTP_ACCESS_TYPE_NO_PROXY, nullptr, nullptr, 0))),
           connection_(nullptr, WinHttpCloseHandle), base_(L"/measure/v1/runs/" + widen(id)) {
         URL_COMPONENTS url{};
         url.dwStructSize = sizeof(url);

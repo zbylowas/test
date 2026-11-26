@@ -48,6 +48,15 @@ jobs:
           "version=$version" >> $env:GITHUB_OUTPUT
       - run: .\build\Release\vipnet-update-check.exe
       - run: .\build\Release\vipnet-route-check.exe
+      - name: Verify per-process network counters on loopback
+        shell: pwsh
+        run: |
+          .\build\Release\vipnet-process-traffic-check.exe
+          if ($LASTEXITCODE -eq 77) {
+            Write-Warning 'Windows did not grant access to the TCP/UDP ETW provider. The parser fixture passed.'
+            exit 0
+          }
+          exit $LASTEXITCODE
       - run: .\build\Release\vipnet-summary-check.exe
       - run: .\build\Release\vipnet-summary-access-check.exe build/Release/VIP-NET-Diagnostyka.exe
       - run: python scripts/verify_summary_ui.py build/Release/VIP-NET-Diagnostyka.exe

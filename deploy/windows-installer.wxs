@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" Name="VIP-NET Diagnostyka" Language="1045" Version="$(var.Version)"
+           Manufacturer="vip-net.pl" UpgradeCode="591B0A2C-2321-46D2-9D2D-AF4C4DC136F0">
+    <Package InstallerVersion="500" Compressed="yes" Platform="x64" InstallScope="perUser" />
+    <MajorUpgrade DowngradeErrorMessage="Zainstalowano już nowszy instalator VIP-NET." />
+    <MediaTemplate EmbedCab="yes" />
+    <Icon Id="AppIcon" SourceFile="$(var.Exe)" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <Property Id="ARPURLINFOABOUT" Value="https://vip-net.pl" />
+    <Condition Message="Instalator wymaga 64-bitowego Windows 10 lub 11.">
+      Installed OR (VersionNT64 &gt;= 603)
+    </Condition>
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="LocalAppDataFolder">
+        <Directory Id="UserProgramsFolder" Name="Programs">
+          <Directory Id="INSTALLFOLDER" Name="VIP-NET Diagnostyka">
+            <Component Id="Application" Guid="F9A18F2D-A80B-4F7E-A7B3-56A8D1A5026A" Win64="yes">
+              <RemoveFolder Id="RemoveInstallFolder" On="uninstall" />
+              <RemoveFolder Id="RemoveUserProgramsFolder" Directory="UserProgramsFolder" On="uninstall" />
+              <File Id="AppExe" Source="$(var.Exe)" Name="VIP-NET-Diagnostyka.exe" />
+              <RegistryValue Root="HKCU" Key="Software\VIP-NET\Diagnostyka" Name="InstallFolder" Value="[INSTALLFOLDER]" Type="string" KeyPath="yes" />
+            </Component>
+          </Directory>
+        </Directory>
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="MenuFolder" Name="VIP-NET">
+          <Component Id="Menu" Guid="4EF97771-CAAD-4DAC-8E60-D683A5E5CF7D" Win64="yes">
+            <Shortcut Id="OpenVipNet" Name="VIP-NET Diagnostyka" Target="[INSTALLFOLDER]VIP-NET-Diagnostyka.exe" WorkingDirectory="INSTALLFOLDER" />
+            <RemoveFolder Id="RemoveVipNetMenu" On="uninstall" />
+            <RegistryValue Root="HKCU" Key="Software\VIP-NET\Diagnostyka" Name="StartMenuShortcut" Value="1" Type="integer" KeyPath="yes" />
+          </Component>
+        </Directory>
+      </Directory>
+    </Directory>
+    <Feature Id="ApplicationFeature" Title="VIP-NET Diagnostyka" Level="1">
+      <ComponentRef Id="Application" />
+      <ComponentRef Id="Menu" />
+    </Feature>
+    <UIRef Id="WixUI_Minimal" />
+    <WixVariable Id="WixUILicenseRtf" Value="$(var.LicenseRtf)" />
+  </Product>
+</Wix>

@@ -167,8 +167,16 @@ DetailPage detail_page(int page,const Json& report,const Snapshot& s){
         }
         p.subtitle=L"Adresy z ostatniego testu. Dwuklik otwiera szczegóły z możliwością kopiowania.";
         if(nic){
-            for(const auto& dns:reading(*nic,"dns"))if(dns.is_string())
-                metric(p,L"DNS",value(dns),L"Adres serwera skonfigurowanego na karcie pomiarowej.");
+            const auto servers=display_dns(*nic);
+            bool public_v6=false;
+            for(const auto& dns:servers){
+                bool ipv6=dns.find(L':')!=dns.npos;
+                public_v6|=ipv6;
+                metric(p,ipv6?L"DNS IPv6 · publiczny":L"DNS IPv4",dns,
+                    L"Adres DNS z konfiguracji karty pomiarowej.");
+            }
+            if(!public_v6)metric(p,L"DNS IPv6",L"Nieskonfigurowane",
+                L"Karta pomiarowa nie ma skonfigurowanego publicznego DNS IPv6.");
             for(const auto& local:reading(*nic,"unicast")){
                 const auto& ip=field(local,"ip");
                 if(!ip.is_string()) continue;
@@ -186,7 +194,7 @@ DetailPage detail_page(int page,const Json& report,const Snapshot& s){
             metric(p,ip.find(L':')==ip.npos?L"IPv4 · widziany przez serwer":L"IPv6 · widziany przez serwer",
                 ip,L"Adres połączenia zapisany przez serwer pomiarowy HTTPS.");
         }else metric(p,L"IP widziany przez serwer",L"Brak danych",L"Serwer nie podał adresu klienta w ostatnim raporcie.");
-        for(int i:{5,6,7})if(s.checks[i].tone==Tone::neutral)fact(p,s.checks[i]);
+        for(int i:{5,6,7})if((i!=5 || !nic) && s.checks[i].tone==Tone::neutral)fact(p,s.checks[i]);
         fact(p,s.checks[9]);
     }
     return p;

@@ -119,6 +119,7 @@ void View::create(HWND parent,std::wstring origin,std::wstring brand) {
     archive_=button(L"Otwórz raport",archive_id);compare_=button(L"Porównaj trasę",compare_id);action_=button(L"Wykonaj test",action_id);export_=button(L"Eksportuj…",export_id);
     copy_row_=button(L"Kopiuj wiersz",copy_row_id);refresh_live_=button(L"Odśwież odczyt",refresh_live_id);
     resource_monitor_=button(L"Monitor zasobów",resource_monitor_id);
+    process_test_=button(L"Test z ruchem procesów",process_test_id);
     scale(GetDpiForWindow(parent)); update(read(nullptr));
 }
 void View::scale(UINT dpi) {
@@ -211,6 +212,8 @@ void View::layout() {
     move(saved_,x+474,top+39,area-474,230,mtr);
     move(game_method_,x+area-295,top+39,135,130,games);move(game_length_,x+area-152,top+39,152,150,games);
     if(route)top+=mtr || games?82:45;
+    move(process_test_,x,top,190,32,workspace_ && page_==2);
+    if(workspace_ && page_==2)top+=40;
     int panel_h=small?94:116;
     bool cards=workspace_ && !table_data_.rows.empty() && (page_<=5 || page_==6 || page_==8);
     for(int i=0;i<3;++i){
@@ -413,7 +416,7 @@ bool View::draw(const DRAWITEMSTRUCT& item) {
     } else if (id==menu_id) {
         glyph(0xe700,ink,1,0,w-2,h);
     } else {
-        bool primary=id==start_id || id==stop_id || id==action_id;
+        bool primary=id==start_id || id==stop_id || id==action_id || id==process_test_id;
         panel(primary?(pressed?RGB(0,81,152):accent):surface,primary?accent:border);
         auto color=primary?surface:disabled?muted:ink;
         if (primary) {

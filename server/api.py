@@ -15,7 +15,7 @@ from server.sessions import ingest, state, status, visibility
 from server.wire import DOCUMENTS, read_body
 from server.portal import install_web
 
-app = FastAPI(title="VIP-NET Internet Diagnostics", version="1.0.1", openapi_url=None)
+app = FastAPI(title="VIP-NET Internet Diagnostics", version="1.1.0", openapi_url=None)
 install_web(app)
 Auth = Annotated[Actor, Depends(authenticate)]
 BASE = "/api/v1"
@@ -55,7 +55,7 @@ def health():
         ready = False
     if not ready:
         raise Problem(503, "storage", "Brak migracji lub dzisiejszej partycji.")
-    return {"version": "1.0.1", "status": "ready"}
+    return {"version": "1.1.0", "status": "ready"}
 
 
 @app.get(BASE + "/sessions")

@@ -69,6 +69,23 @@ void measured(Fact& f,std::wstring v,std::wstring detail,Tone tone=Tone::observe
     f.value=std::move(v);f.detail=std::move(detail);f.tone=tone;
 }
 }
+std::vector<std::wstring> display_dns(const Json& adapter){
+    std::vector<std::wstring> result,ipv6;
+    for(const auto& item:value(adapter,"dns")){
+        if(!item.is_string())continue;
+        const auto& address=item.get_ref<const std::string&>();
+        try {
+            auto target=parse_target(address.c_str());
+            auto text=from_utf8(target.text);
+            if(!target.ipv6()){
+                if(result.empty())result.push_back(std::move(text));
+            }else if(ipv6.size()<2 && public_game_target(target) &&
+                std::find(ipv6.begin(),ipv6.end(),text)==ipv6.end())ipv6.push_back(std::move(text));
+        }catch(const std::invalid_argument&){}
+    }
+    result.insert(result.end(),ipv6.begin(),ipv6.end());
+    return result;
+}
 Snapshot read(const Json& report) {
     Snapshot s;
     const wchar_t* metric_names[]={L"Pobieranie",L"Wysyłanie",L"Ping",L"Wahanie pingu",L"Utrata odpowiedzi",L"Opóźnienie pobierania",L"Opóźnienie wysyłania"};
@@ -144,18 +161,15 @@ Snapshot read(const Json& report) {
                 if(check.value.starts_with(L"fe80:") && !ip.starts_with(L"fe80:"))check.value=ip;
             }
         }
-        std::wstring dns, addresses;
-        size_t count=0;
-        for (const auto& server:value(*nic,"dns")) {
-            auto ip=string_value(server);
-            if(ip.empty()) continue;
-            if(count++) addresses+=L"\r\n";
-            else dns=ip;
-            addresses+=ip;
-        }
-        if (count)
-            measured(s.checks[5],dns+(count>1?L"  +"+std::to_wstring(count-1):L""),
-                L"Serwery DNS karty pomiarowej\r\n"+addresses);
+        const auto dns=display_dns(*nic);
+        if(!dns.empty()){
+            std::wstring addresses;
+            for(const auto& address:dns)addresses+=address+L"\r\n";
+            if(std::none_of(dns.begin(),dns.end(),[](const auto& address){return address.find(L':')!=address.npos;}))
+                addresses+=L"DNS IPv6 · Nieskonfigurowane";
+            measured(s.checks[5],dns.front()+(dns.size()>1?L"  +"+std::to_wstring(dns.size()-1):L""),
+                L"Jeden DNS IPv4 i maksymalnie dwa publiczne DNS IPv6 z karty testu\r\n"+addresses);
+        }else measured(s.checks[5],L"Nieskonfigurowane",L"Brak DNS IPv4 do pokazania.\r\nDNS IPv6 · Nieskonfigurowane.",Tone::neutral);
     }
     auto observed=string_value(field(report,"observed_ip"));
     if (!observed.empty()) {

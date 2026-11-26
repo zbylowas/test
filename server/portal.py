@@ -137,6 +137,14 @@ def install_web(app):
             raise Problem(503, "download_missing", "Metadane wydania są niedostępne.")
         return FileResponse(path, media_type="application/json", headers={"Cache-Control":"no-cache"})
 
+    @app.get("/pobierz/VIP-NET-Diagnostyka-Setup.msi")
+    def download_installer():
+        setup = root / "VIP-NET-Diagnostyka-Setup.msi"
+        if not setup.is_file():
+            raise Problem(503, "download_missing", "Instalator oczekuje na publikację.")
+        return FileResponse(setup, filename=setup.name, media_type="application/x-msi",
+                            headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "no-cache"})
+
     @app.get("/pobierz/VIP-NET-Diagnostyka.exe.sha256")
     def checksum():
         exe = root / "VIP-NET-Diagnostyka.exe"

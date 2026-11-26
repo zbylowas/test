@@ -60,18 +60,21 @@ int main() {
     report["throughput"]["reservation_local_ip"]={{"value",ip}};
     report["observed_ip"]="203.0.113.44";
     Json nic={{"unicast",{{"value",Json::array({{{"ip",ip}},{{"ip","fe80::10"}},{{"ip","2001:db8::10"}}})}}},
-        {"dns",{{"value",Json::array({"192.0.2.53","2001:db8::53"})}}},{"model",{{"value","Fixture NIC"}}}};
+        {"dns",{{"value",Json::array({"192.0.2.53","198.51.100.53","fe80::53","fd00::53","2001:db8::53"})}}},{"model",{{"value","Fixture NIC"}}}};
     report["inventory"]["interfaces"]["value"]=Json::array({nic});
     auto internet=read(report);
-    require(internet.checks[5].value==L"192.0.2.53  +1","DNS address missing");
+    require(internet.checks[5].value==L"192.0.2.53","DNS address missing");
     require(internet.checks[6].value==L"203.0.113.44" && internet.checks[7].value==L"2001:db8::10","IP addresses not shown");
     auto internet_page=detail_page(5,report,internet);
-    bool local_ip=false,dns=false;
+    bool local_ip=false,dns=false,v6_status=false;
     for(const auto& row:internet_page.rows){
         local_ip|=row.cells[0]==L"IPv4 · karta" && row.cells[1]==L"192.0.2.10";
-        dns|=row.cells[0]==L"DNS" && row.cells[1]==L"2001:db8::53";
+        dns|=row.cells[0]==L"DNS IPv4" && row.cells[1]==L"192.0.2.53";
+        require(row.cells[0]!=L"DNS IPv6 · publiczny","local or documentation IPv6 DNS shown publicly");
+        require(row.cells[1]!=L"198.51.100.53","second IPv4 DNS displayed");
+        v6_status|=row.cells[0]==L"DNS IPv6" && row.cells[1]==L"Nieskonfigurowane";
     }
-    require(local_ip && dns,"individual addresses omitted from Internet view");
+    require(local_ip && dns && v6_status,"Internet view missing address or IPv6 DNS status");
     auto& node=report["throughput"]["host_pings"]["node"];
     node={{"target",ip},{"planned",5},{"reason",nullptr},{"samples",{ping,ping,timeout,ping,ping}}};
     auto result=read(report);

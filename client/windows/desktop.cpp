@@ -3,6 +3,7 @@
 #include "update.hpp"
 #include "game_relay.hpp"
 #include "live_diagnostics.hpp"
+#include "process_traffic.hpp"
 #include "desktop_brand.hpp"
 #pragma comment(linker,"/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 #include "inventory_report.hpp"
@@ -26,9 +27,11 @@
 namespace {
 using namespace summary;
 constexpr UINT done_message=WM_APP+1,phase_message=WM_APP+2;
-constexpr UINT_PTR chart_timer=1;
+constexpr UINT_PTR chart_timer=1, process_timer=3;
 View view;
 LiveTraffic live_traffic;
+std::unique_ptr<traffic::Capture> process_capture;
+std::wstring process_phase;
 int active_direction=0;
 int window_icon_id = 0;
 void set_window_icon(HWND window,int step) {
@@ -227,18 +230,29 @@ void end_chart(HWND window) {
     active_direction=0;
 }
 
-void run(HWND window) {
+void run(HWND window,bool measure_processes=false) {
+    process_capture=measure_processes?std::make_unique<traffic::Capture>():nullptr;
+    auto* capture=process_capture.get();
     live_traffic.clear();
     live_traffic.capacity=view.capacity();
     busy=true;cancelled=false;technical=false;report_open=false;
     worker_report=nullptr;worker_error.clear();result_text.clear();technical_text.clear();
     for(int i=0;i<12;++i)EnableWindow(GetDlgItem(window,nav_id+i),FALSE);
-    view.home();view.update(summary::read(nullptr));view.controls(true,false,false);
-    view.phase(L"Łączenie z serwerem…");SetFocus(GetDlgItem(window,stop_id));
-    job=std::jthread([window] {
+    if(capture){
+        process_phase=L"Uruchamianie testu";
+        view.workspace(2,capture->page(true,process_phase));
+        SetDlgItemTextW(window,process_test_id,L"Zatrzymaj pomiar");
+        SetTimer(window,process_timer,1000,nullptr);
+    }else view.home();
+    view.update(summary::read(nullptr));view.controls(true,false,false);
+    view.phase(capture?L"Oczekiwanie na licznik ruchu Windows…":L"Łączenie z serwerem…");
+    SetFocus(GetDlgItem(window,capture?process_test_id:stop_id));
+    job=std::jthread([window,capture] {
         try {
             auto host=origin();
             if (host.empty()) throw std::runtime_error("central_server_not_configured");
+            if(capture)capture->start(window);
+            if(cancelled)throw std::runtime_error("cancelled");
             code=credential(host,true);
             auto dir=profile(host,code);
             SetEnvironmentVariableW(L"VIPNET_API_ORIGIN",host.c_str());
@@ -252,6 +266,7 @@ void run(HWND window) {
             },live_traffic);
             write_report(dir,worker_report);
         } catch(const std::exception& e) {worker_error=wide(e.what());}
+        if(capture)capture->finish();
         PostMessageW(window,done_message,0,0);
     });
 }
@@ -618,7 +633,7 @@ void refresh_live(HWND w, int page) {
 void navigate(HWND w,int page){
     report_open=false;opened_route=0;
     if(!page){view.home();view.controls(busy,!code.empty(),!technical_text.empty());set_control(w,report_id,L"Pełny raport");return;}
-    auto p=detail_page(page,last_report,view.data());
+    auto p=page==2 && process_capture?process_capture->page(false,L""):detail_page(page,last_report,view.data());
     if(page>=6 && page<=8){
         auto& doc=route_reports[page-6];
         p=route_display(page,!doc.is_object() && page==7?last_report:doc);
@@ -675,7 +690,8 @@ void navigate(HWND w,int page){
             {{L"Panel klienta",origin()+L"/klient"},L"Przycisk na dole kopiuje prywatny kod do panelu klienta.",{},{}}};
     }
     view.workspace(page,std::move(p));
-    if(page==2 || page==3)refresh_live(w,page);
+    if((page==2 && !process_capture) || page==3)refresh_live(w,page);
+    if(page==2)SetDlgItemTextW(w,process_test_id,L"Test z ruchem procesów");
     if(page==11){
         set_control(w,update_id,installed_update?L"Zamknij i zastosuj":offered_release?L"Zainstaluj aktualizację":L"Sprawdź aktualizacje");
         EnableWindow(GetDlgItem(w,update_id),!updating && !busy && !loading);
@@ -927,6 +943,12 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
         if(id==compare_id && !busy){compare_route(w);return 0;}
         if(id==export_id && !busy){export_page(w);return 0;}
         if(id==refresh_live_id && !busy && (view.page()==2 || view.page()==3)){refresh_live(w,view.page());return 0;}
+        if(id==process_test_id && view.page()==2 && !loading && !live_active){
+            if(busy){
+                if(process_capture){cancelled=true;view.route_status(L"Zatrzymywanie i zapis pomiaru…");}
+            }else run(w,true);
+            return 0;
+        }
         if(id==resource_monitor_id && view.page()==2 && !busy){
             wchar_t dir[MAX_PATH]{};
             auto len=GetSystemDirectoryW(dir,MAX_PATH);
@@ -976,6 +998,10 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
         return 0;
     }
     case WM_TIMER:
+        if(a==process_timer && process_capture && busy && view.page()==2 && !cancelled){
+            view.table(process_capture->page(true,process_phase));
+            return 0;
+        }
         if(a==route_timer && route_mode && !cancelled){
             Json batch=Json::array();{std::scoped_lock lock(sample_mutex);batch.swap(new_samples);}
             if(!batch.empty()){
@@ -990,11 +1016,13 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
             if(!pts.empty() && cap>0) set_window_icon(w,static_cast<int>(std::lround(20*std::clamp(pts.back().mbps/cap,0.0,1.0))));
         }return 0;
     case phase_message:
+        if(process_capture && a<labels.size())process_phase=labels[a];
         if(busy && !cancelled && a<labels.size()) {
             end_chart(w);view.phase(labels[a]);
             if(a==1 || a==2) {active_direction=static_cast<int>(a);SetTimer(w,chart_timer,200,nullptr);}
         }return 0;
     case done_message: {
+        KillTimer(w,process_timer);
         job.join();bool restore=loading;loading=false;busy=false;end_chart(w);
         if(closing){if(!updating && !catalog_loading && !live_active){save_placement(w);DestroyWindow(w);}return 0;}
         if(route_mode){
@@ -1048,6 +1076,8 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,PWSTR arguments,int show) {
         wchar_t* end=nullptr;unsigned long number=wcstoul(pid.data(),&end,10);
         return number && !*end?updates::finish_pending_update(number):2;
     }
+    constexpr std::wstring_view process_arg=L"--process-traffic ";
+    if(args.starts_with(process_arg))return traffic::run_helper(args.substr(process_arg.size()));
     updates::cleanup();
     if(!SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)) SetProcessDPIAware();
     INITCOMMONCONTROLSEX common{sizeof common,ICC_WIN95_CLASSES};InitCommonControlsEx(&common);

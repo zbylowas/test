@@ -39,3 +39,9 @@ Przy otwarciu aplikacja pobiera mały opis wydania przez HTTPS. Gdy pojawi się 
 Wydawca podpisuje numer wersji, platformę, rozmiar i skrót SHA-256 manifestu. Klient akceptuje tylko zgodny podpis przypiętym publicznym kluczem i nowszą wersję. Folder zapisu, nazwa aplikacji i adres pobierania wynikają z uruchomionej kopii programu oraz jego kanału HTTPS. Wydanie stagingowe zawiera samodzielnie wystawiony podpis Authenticode projektu. Publiczny łańcuch zaufania wydawcy wymaga odrębnej weryfikacji.
 
 Twórca projektu to **vip-net.pl**. [Code signing policy](https://github.com/zbylowas/test#code-signing-policy)
+
+## Instalacja w profilu Windows
+
+Uruchom VIP-NET-Diagnostyka-Setup.msi. Windows umieści program w katalogu `%LOCALAPPDATA%\Programs\VIP-NET Diagnostyka` i doda skrót do menu Start. Aktualizacja w Ustawieniach sprawdza podpis manifestu, pobiera nowy EXE i podmienia go po zamknięciu programu. Odinstalowanie odbywa się przez listę zainstalowanych aplikacji Windows. Dane pomiarów zapisane w profilu użytkownika są dostępne także po usunięciu programu.
+
+Do budowy MSI użyj WiX 3.14.1 w wydaniu przenośnym, pliku `deploy/windows-installer.wxs` i skryptu `scripts/build_windows_installer.ps1`. Skrypt przyjmuje podpisany EXE wydania. Podpis MSI wykorzystuje lokalny magazyn certyfikatów dystrybutora. Adres testowanego środowiska jest parametrem budowy EXE. [WiX 3.14.1](https://github.com/wixtoolset/wix3/releases/tag/wix3141rtm)
