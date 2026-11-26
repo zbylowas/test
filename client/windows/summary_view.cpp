@@ -117,6 +117,7 @@ void View::create(HWND parent,std::wstring origin,std::wstring brand) {
     choices(interval_id,{L"100 ms",L"500 ms",L"1000 ms"},0);
     update_=button(L"Sprawdź aktualizacje",update_id);
     archive_=button(L"Otwórz raport",archive_id);compare_=button(L"Porównaj trasę",compare_id);action_=button(L"Wykonaj test",action_id);export_=button(L"Eksportuj…",export_id);
+    copy_row_=button(L"Kopiuj wiersz",copy_row_id);refresh_live_=button(L"Odśwież odczyt",refresh_live_id);
     scale(GetDpiForWindow(parent)); update(read(nullptr));
 }
 void View::scale(UINT dpi) {
@@ -182,7 +183,8 @@ void View::layout() {
     }
     y+=strip+(small?10:18);
     move(diagnostics_,x,y,area/2,30,home_page);
-    move(report_,home_page?x+area-130:x+190,home_page?y:height-bar-46,130,home_page?30:32);
+    const bool narrow_actions=(page_==7 || page_==9 || page_==10) && area<728;
+    move(report_,home_page?x+area-130:x+(narrow_actions?152:190),home_page?y:height-bar-46,narrow_actions?118:130,home_page?30:32);
     y+=34;
     int status_h=std::clamp((height-bar-y-(small?43:60))/5,26,52);
     for (int i=0;i<10;++i) {
@@ -222,7 +224,10 @@ void View::layout() {
     EnableWindow(archive_,!busy_ && !table_data_.rows.empty());
     move(compare_,x+area-264,footer_y,132,32,mtr && !busy_);
     move(export_,x+area-124,footer_y,124,32,workspace_);
-    move(copy_,x,height-bar-46,180,32,!home_page);
+    const bool action_right=mtr || page_==9 || page_==10;
+    move(copy_row_,x+area-(action_right?398:258),footer_y,126,32,workspace_);
+    move(refresh_live_,x+area-290,24,142,34,workspace_ && (page_==2 || page_==3));
+    move(copy_,x,height-bar-46,narrow_actions?142:180,32,!home_page);
     move(footer_,0,viewport-bar,width,bar);
     SetWindowPos(footer_,HWND_TOP,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
     InvalidateRect(parent_,nullptr,TRUE);
@@ -388,8 +393,13 @@ bool View::draw(const DRAWITEMSTRUCT& item) {
     } else if (id>=check_id && id<check_id+10) {
         const int i=id-check_id;const auto& f=data_.checks[i];panel();
         glyph(check_icons[i],muted,8,0,24,h);
-        text(0,ink,38,0,w*53/100,h,f.label);
-        text(0,tone_color(f.tone),w*53/100,0,w-24,h,f.value,DT_RIGHT);
+        if(i>=5 && i<=7 && f.value.size()>26){
+            text(0,ink,38,1,w-25,h/2+2,f.label);
+            text(0,tone_color(f.tone),38,h/2,w-25,h-1,f.value);
+        }else{
+            text(0,ink,38,0,w*53/100,h,f.label);
+            text(0,tone_color(f.tone),w*53/100,0,w-24,h,f.value,DT_RIGHT);
+        }
         glyph(0xe76c,muted,w-22,0,17,h);
     } else if (id==finding_id) {
         panel();glyph(0xe946,tone_color(data_.finding_tone),10,0,24,h);
@@ -432,6 +442,7 @@ void View::choices(int id,const std::vector<std::wstring>& names,int select){
 int View::selected() const {return ListView_GetNextItem(table_,-1,LVNI_SELECTED);}
 void View::select_row(){
     int i=selected();set(graph_,i>=0 && static_cast<size_t>(i)<table_data_.rows.size()?table_data_.rows[i].detail:L"Brak zebranych wyników.");
+    EnableWindow(copy_row_,i>=0);
     InvalidateRect(graph_,nullptr,FALSE);
 }
 void View::table(DetailPage page){

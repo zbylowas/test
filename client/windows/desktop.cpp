@@ -2,6 +2,7 @@
 #include "summary_view.hpp"
 #include "update.hpp"
 #include "game_relay.hpp"
+#include "live_diagnostics.hpp"
 #include "desktop_brand.hpp"
 #pragma comment(linker,"/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 #include "inventory_report.hpp"
@@ -253,20 +254,90 @@ void run(HWND window) {
         PostMessageW(window,done_message,0,0);
     });
 }
-bool copy_secret(HWND window) {
-    if(code.empty() || !OpenClipboard(window)) return false;
+bool copy_text(HWND window, const std::wstring& value) {
+    if(value.empty() || !OpenClipboard(window))return false;
     struct Close { ~Close(){ CloseClipboard(); } } close;
-    auto bytes=(code.size()+1)*sizeof(wchar_t);
-    HANDLE memory=GlobalAlloc(GMEM_MOVEABLE,bytes);
-    if(!memory) return false;
-    auto buffer=GlobalLock(memory);
-    if(!buffer){ GlobalFree(memory); return false; }
-    memcpy(buffer,code.c_str(),bytes); GlobalUnlock(memory);
-    if(!EmptyClipboard() || !SetClipboardData(CF_UNICODETEXT,memory)){ GlobalFree(memory); return false; }
+    const auto size=(value.size()+1)*sizeof(wchar_t);
+    auto memory=GlobalAlloc(GMEM_MOVEABLE,size);
+    if(!memory)return false;
+    auto destination=GlobalLock(memory);
+    if(!destination){GlobalFree(memory);return false;}
+    memcpy(destination,value.c_str(),size);GlobalUnlock(memory);
+    if(!EmptyClipboard() || !SetClipboardData(CF_UNICODETEXT,memory)){GlobalFree(memory);return false;}
     return true;
 }
-
-
+HWND details_window{};
+constexpr int details_text_id=401, details_copy_id=402, details_close_id=403;
+LRESULT CALLBACK details_dispatch(HWND w, UINT message, WPARAM wp, LPARAM lp) {
+    switch(message){
+    case WM_CREATE: {
+        auto instance=reinterpret_cast<LPCREATESTRUCTW>(lp)->hInstance;
+        auto child=[&](const wchar_t* cls,const wchar_t* label,DWORD style,int id) {
+            auto control=CreateWindowExW(id==details_text_id?WS_EX_CLIENTEDGE:0,cls,label,
+                WS_CHILD|WS_VISIBLE|WS_TABSTOP|style,0,0,1,1,w,reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),instance,nullptr);
+            SendMessageW(control,WM_SETFONT,reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)),TRUE);
+            return control;
+        };
+        child(L"EDIT",L"",ES_MULTILINE|ES_READONLY|ES_AUTOVSCROLL|WS_VSCROLL,details_text_id);
+        child(L"BUTTON",L"Kopiuj całość",BS_PUSHBUTTON,details_copy_id);
+        child(L"BUTTON",L"Zamknij",BS_PUSHBUTTON,details_close_id);
+        return 0;
+    }
+    case WM_SIZE: {
+        int width=LOWORD(lp),height=HIWORD(lp),dpi=GetDpiForWindow(w);
+        int gap=MulDiv(16,dpi,96),button=MulDiv(128,dpi,96),row=MulDiv(34,dpi,96);
+        MoveWindow(GetDlgItem(w,details_text_id),gap,gap,std::max(1,width-2*gap),std::max(1,height-row-3*gap),TRUE);
+        MoveWindow(GetDlgItem(w,details_copy_id),gap,height-gap-row,button,row,TRUE);
+        MoveWindow(GetDlgItem(w,details_close_id),width-gap-button,height-gap-row,button,row,TRUE);
+        return 0;
+    }
+    case WM_COMMAND:
+        if(LOWORD(wp)==details_copy_id){
+            auto edit=GetDlgItem(w,details_text_id);
+            SendMessageW(edit,EM_SETSEL,0,-1);
+            SendMessageW(edit,WM_COPY,0,0);
+            SetFocus(edit);
+            return 0;
+        }
+        if(LOWORD(wp)==details_close_id || LOWORD(wp)==IDCANCEL){DestroyWindow(w);return 0;}
+        break;
+    case WM_DESTROY:details_window=nullptr;return 0;
+    }
+    return DefWindowProcW(w,message,wp,lp);
+}
+void show_details(HWND parent, const std::wstring& title, const std::wstring& details) {
+    auto instance=GetModuleHandleW(nullptr);
+    if(!details_window){
+        constexpr wchar_t class_name[]=L"VipNetDetailsWindow";
+        WNDCLASSW cls{};cls.hInstance=instance;cls.lpszClassName=class_name;cls.lpfnWndProc=details_dispatch;
+        cls.hCursor=LoadCursorW(nullptr,IDC_ARROW);cls.hbrBackground=GetSysColorBrush(COLOR_BTNFACE);
+        if(!RegisterClassW(&cls) && GetLastError()!=ERROR_CLASS_ALREADY_EXISTS)return;
+        MONITORINFO monitor{};monitor.cbSize=sizeof monitor;
+        if(!GetMonitorInfoW(MonitorFromWindow(parent,MONITOR_DEFAULTTONEAREST),&monitor))return;
+        auto area=monitor.rcWork;int dpi=GetDpiForWindow(parent);
+        int width=std::min<int>(area.right-area.left,MulDiv(780,dpi,96));
+        int height=std::min<int>(area.bottom-area.top,MulDiv(510,dpi,96));
+        details_window=CreateWindowExW(WS_EX_CONTROLPARENT,class_name,title.c_str(),WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,
+            area.left+(area.right-area.left-width)/2,area.top+(area.bottom-area.top-height)/2,width,height,parent,nullptr,instance,nullptr);
+    }
+    if(!details_window)return;
+    SetWindowTextW(details_window,title.c_str());
+    auto edit=GetDlgItem(details_window,details_text_id);
+    SetWindowTextW(edit,details.c_str());
+    ShowWindow(details_window,SW_RESTORE);SetForegroundWindow(details_window);SetFocus(edit);
+    SendMessageW(edit,EM_SETSEL,0,0);
+}
+std::wstring selected_row_text() {
+    auto index=view.selected();
+    const auto& page=view.table_data();
+    if(index<0 || static_cast<size_t>(index)>=page.rows.size())return {};
+    const auto& row=page.rows[index];
+    std::wstring text;
+    for(size_t i=0;i<std::min(row.cells.size(),page.columns.size());++i)
+        text+=page.columns[i].first+L"\t"+row.cells[i]+L"\r\n";
+    if(!row.detail.empty())text+=L"\r\n"+row.detail;
+    return text;
+}
 void show_report(HWND w,bool raw) {
     report_open=true;technical=raw;
     view.details(10,raw?L"Raport techniczny":L"Raport z pomiaru",raw?technical_text:result_text);
@@ -518,6 +589,26 @@ void start_update(HWND w,bool install){
         PostMessageW(w,update_message,0,0);
     });
 }
+constexpr UINT live_message=WM_APP+6;
+std::jthread live_job;
+int live_active{},live_requested{};
+void refresh_live(HWND w, int page) {
+    live_requested=page;
+    if(live_active)return;
+    live_active=page;
+    EnableWindow(GetDlgItem(w,refresh_live_id),FALSE);
+    view.route_status(L"Odczytywanie bieżących danych Windows…");
+    auto previous=detail_page(page,last_report,view.data());
+    live_job=std::jthread([w,page,previous=std::move(previous)]{
+        auto result=std::make_unique<DetailPage>();
+        try {*result=page==2?live_computer(previous):live_lan();}
+        catch(const std::exception&){
+            *result=previous;
+            result->subtitle=L"Windows nie udostępnił bieżącego odczytu.";
+        }
+        if(PostMessageW(w,live_message,page,reinterpret_cast<LPARAM>(result.get())))result.release();
+    });
+}
 void navigate(HWND w,int page){
     report_open=false;opened_route=0;
     if(!page){view.home();view.controls(busy,!code.empty(),!technical_text.empty());set_control(w,report_id,L"Pełny raport");return;}
@@ -527,8 +618,11 @@ void navigate(HWND w,int page){
         p=route_display(page,!doc.is_object() && page==7?last_report:doc);
         if(route_mode==page)p=active_trace?route_page(active_samples):ping_page(active_samples);
     }else if(page==9 || page==10){
-        p.columns={{L"Czas rozpoczęcia UTC",208},{L"Rodzaj testu",175},{L"Sesja",310}};
-        p.subtitle=L"Wybierz zapis i naciśnij Enter, aby go otworzyć.";
+        const bool history=page==9;
+        p.columns=history?
+            decltype(p.columns){{L"Czas rozpoczęcia UTC",194},{L"Test",142},{L"Sesja",220},{L"Stan",132},{L"Cel",175}}:
+            decltype(p.columns){{L"Czas rozpoczęcia UTC",194},{L"Raport",142},{L"Sesja",220},{L"Pobieranie",98},{L"Wysyłanie",98},{L"Ping / próbki",105}};
+        p.subtitle=history?L"Dziennik wykonanych i przerwanych prób. Enter otwiera zapis.":L"Zestawienie wyników zapisanych raportów. Enter otwiera raport.";
         if(!code.empty()){
             auto dir=profile(origin(),code)/L"reports";std::error_code ec;
             for(const auto& file:std::filesystem::directory_iterator(dir,ec)){
@@ -537,7 +631,26 @@ void navigate(HWND w,int page){
                 const auto& t=doc.contains("throughput")?doc.at("throughput"):doc;
                 auto id=t.value("session_id","");if(id.empty())continue;
                 const auto& m=field(doc,"measurement");std::wstring kind=L"Pełny test";if(m.is_object())kind=wide(m.value("profile_name",m.value("purpose","")));
-                p.rows.push_back({{wide(t.value("started_at","")),kind,wide(id)},doc.value("synchronized",false)?L"Serwer potwierdził synchronizację raportu.":L"Zapis lokalny w profilu komputera.",{},{}});
+                DetailRow row;
+                row.cells={wide(t.value("started_at","")),kind,wide(id)};
+                auto completed=field(doc,"state")=="completed" || (doc.contains("throughput") && field(t,"error").is_null());
+                if(history){
+                    auto state=completed?L"Zakończono":field(doc,"state")=="cancelled"?L"Przerwano":L"Częściowy";
+                    auto target=field(m,"target_name").is_string()?field(m,"target_name"):field(t,"peer");
+                    row.cells.insert(row.cells.end(),{state,target.is_string()?wide(target.get<std::string>()):L"—"});
+                }else if(doc.contains("throughput")){
+                    auto saved=summary::read(doc);
+                    auto with_unit=[&](int index,const wchar_t* unit){
+                        const auto& v=saved.metrics[index].value;
+                        return v==L"—"?v:v+unit;
+                    };
+                    row.cells.insert(row.cells.end(),{with_unit(0,L" Mb/s"),with_unit(1,L" Mb/s"),with_unit(2,L" ms")});
+                }else{
+                    auto count=field(doc,"mtr_samples").size();
+                    row.cells.insert(row.cells.end(),{L"—",L"—",std::to_wstring(count)+L" próbek"});
+                }
+                row.detail=doc.value("synchronized",false)?L"Serwer potwierdził synchronizację raportu.":L"Zapis lokalny w profilu komputera.";
+                p.rows.push_back(std::move(row));
             }
             std::sort(p.rows.begin(),p.rows.end(),[](const auto& a,const auto& b){return a.cells[0]>b.cells[0];});
         }
@@ -550,6 +663,7 @@ void navigate(HWND w,int page){
             {{L"Panel klienta",origin()+L"/klient"},L"Przycisk na dole kopiuje prywatny kod do panelu klienta.",{},{}}};
     }
     view.workspace(page,std::move(p));
+    if(page==2 || page==3)refresh_live(w,page);
     if(page==11){
         set_control(w,update_id,installed_update?L"Zamknij i zastosuj":offered_release?L"Zainstaluj aktualizację":L"Sprawdź aktualizacje");
         EnableWindow(GetDlgItem(w,update_id),!updating && !busy && !loading);
@@ -625,7 +739,7 @@ void open_archive(HWND w){
     std::ifstream input(dir/(name+L".json"),std::ios::binary);auto doc=Json::parse(input,nullptr,false);
     if(!doc.is_object())return;
     if(doc.contains("throughput")){
-        last_report=doc;result_text=wide(reader_report(doc));technical_text=render_technical(doc);view.update(summary::read(doc));show_report(w,false);
+        show_details(w,L"Archiwalny raport z pomiaru",wide(reader_report(doc)));
     }else if(field(doc,"measurement").is_object()){
         auto type=doc.at("measurement").value("purpose","");int mode=type=="gaming"?6:type=="monitor"?8:7;
         route_reports[mode-6]=std::move(doc);navigate(w,mode);
@@ -753,14 +867,28 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
         if(header->idFrom!=list_id)break;
         if(header->code==LVN_ITEMCHANGED)view.select_row();
         if(header->code==LVN_COLUMNCLICK)view.sort(reinterpret_cast<NMLISTVIEW*>(b)->iSubItem);
-        if((header->code==NM_RETURN || header->code==NM_DBLCLK) && (view.page()==9 || view.page()==10) && !busy && !loading)open_archive(w);
+        if((header->code==NM_RETURN || header->code==NM_DBLCLK) && !busy && !loading){
+            if(view.page()==9 || view.page()==10)open_archive(w);
+            else if(auto body=selected_row_text();!body.empty())show_details(w,L"Szczegóły pozycji",body);
+        }
+        return 0;
+    }
+    case live_message: {
+        std::unique_ptr<DetailPage> result(reinterpret_cast<DetailPage*>(b));
+        live_job.join();
+        live_active=0;
+        if(closing){if(!busy && !loading && !catalog_loading && !updating){save_placement(w);DestroyWindow(w);}return 0;}
+        if(view.page()==static_cast<int>(a)){
+            view.table(std::move(*result));
+            EnableWindow(GetDlgItem(w,refresh_live_id),TRUE);
+        }else if(view.page()==live_requested && (live_requested==2 || live_requested==3))refresh_live(w,live_requested);
         return 0;
     }
     case update_message:
         update_job.join();updating=false;
         offered_release=std::move(update_result.available);
         installed_update=update_result.installed;update_status=std::move(update_result.status);
-        if(closing){if(!busy && !loading && !catalog_loading){save_placement(w);DestroyWindow(w);}return 0;}
+        if(closing){if(!busy && !loading && !catalog_loading && !live_active){save_placement(w);DestroyWindow(w);}return 0;}
         if(view.page()==11)navigate(w,11);
         if(offered_release && !installed_update)SetWindowTextW(w,L"NetDiagnostics — aktualizacja dostępna w Ustawieniach");
         return 0;
@@ -768,7 +896,7 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
         std::unique_ptr<std::pair<Json,std::wstring>> result(reinterpret_cast<std::pair<Json,std::wstring>*>(b));
         catalog_job.join();catalog_loading=false;
         game_catalog=std::move(result->first);catalog_error=std::move(result->second);
-        if(closing && !updating && !busy && !loading){save_placement(w);DestroyWindow(w);return 0;}
+        if(closing && !updating && !busy && !loading && !live_active){save_placement(w);DestroyWindow(w);return 0;}
         if(view.page()==6 && !busy && !loading){init_games(w);if(!route_reports[0].is_object())show_profiles_info(w);else view.route_status(route_display(6,route_reports[0]).subtitle);EnableWindow(GetDlgItem(w,action_id),!busy && !loading);}
         return 0;
     }
@@ -786,6 +914,12 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
         if(id==archive_id && !busy && !loading && (view.page()==9 || view.page()==10)){open_archive(w);return 0;}
         if(id==compare_id && !busy){compare_route(w);return 0;}
         if(id==export_id && !busy){export_page(w);return 0;}
+        if(id==refresh_live_id && !busy && (view.page()==2 || view.page()==3)){refresh_live(w,view.page());return 0;}
+        if(id==copy_row_id && !busy){
+            auto body=selected_row_text();
+            if(!body.empty())view.route_status(copy_text(w,body)?L"Skopiowano zaznaczony wiersz":L"Schowek jest niedostępny");
+            return 0;
+        }
         if(view.page()==6 && !route_mode && HIWORD(a)==CBN_SELCHANGE){
             if(id==choice_id){game_selection(w);show_profiles_info(w);}
             if(id==region_id){show_profiles_info(w);game_region(w);}
@@ -793,7 +927,7 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
         if(id==start_id && !busy && !loading) run(w);
         else if(id==stop_id && busy) {cancelled=true;end_chart(w);view.phase(L"Zatrzymywanie pomiaru…");}
         else if(id==copy_id && !busy && !loading) {
-            MessageBoxW(w,copy_secret(w)?L"Skopiowano prywatny kod do panelu klienta.":L"Schowek jest niedostępny.",L"Panel klienta",MB_OK|MB_ICONINFORMATION);
+            view.phase(copy_text(w,code)?L"Skopiowano prywatny kod klienta":L"Nie można skopiować kodu klienta");
         } else if(id==report_id && !busy && !loading){
             int mode=opened_route?opened_route:view.page();
             if(mode>=6 && mode<=8 && route_reports[mode-6].is_object())route_report(w,mode,report_open && !technical);
@@ -807,13 +941,16 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
             if(id==finding_id){caption=L"Wniosek z pomiaru";detail=s.finding+L"\r\n\r\n"+s.finding_detail;}
             else {
                 const auto& f=id>=check_id?s.checks[id-check_id]:s.metrics[id-metric_id];
-                caption=f.label;detail=f.detail;
+                caption=f.label;
+                static constexpr const wchar_t* units[]={L" Mb/s",L" Mb/s",L" ms",L" ms",L" %",L" ms",L" ms"};
+                std::wstring unit=id>=check_id || f.value==L"—"?L"":units[id-metric_id];
+                detail=f.label+L"\r\n"+f.value+unit+L"\r\n\r\n"+f.detail;
                 if(id>=metric_id && id<metric_id+2 && !s.lines[id-metric_id].empty()) {
                     const auto& line=s.lines[id-metric_id];double peak=0;for(auto p:line)peak=std::max(peak,p.mbps);
                     detail+=L"\r\n\r\nOstatnia próbka: "+number(line.back().mbps)+L" Mb/s. Maksimum: "+number(peak)+L" Mb/s.";
                 }
             }
-            MessageBoxW(w,detail.c_str(),caption.c_str(),MB_OK|MB_ICONINFORMATION);
+            show_details(w,caption,detail);
         }
         return 0;
     }
@@ -838,7 +975,7 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
         }return 0;
     case done_message: {
         job.join();bool restore=loading;loading=false;busy=false;end_chart(w);
-        if(closing){if(!updating && !catalog_loading){save_placement(w);DestroyWindow(w);}return 0;}
+        if(closing){if(!updating && !catalog_loading && !live_active){save_placement(w);DestroyWindow(w);}return 0;}
         if(route_mode){
             KillTimer(w,route_timer);int mode=route_mode;route_mode=0;
             for(int i=0;i<12;++i)EnableWindow(GetDlgItem(w,nav_id+i),TRUE);
@@ -873,7 +1010,7 @@ LRESULT CALLBACK dispatch(HWND w,UINT m,WPARAM a,LPARAM b) {
         view.controls(false,!code.empty(),!technical_text.empty());view.phase(status);if(view.page() && !report_open)navigate(w,view.page());return 0;
     }
     case WM_CLOSE:
-        if(busy || loading || catalog_loading || updating){closing=true;cancelled=true;end_chart(w);view.phase(L"Zamykanie i zapis wyniku…");}
+        if(busy || loading || catalog_loading || updating || live_active){closing=true;cancelled=true;end_chart(w);view.phase(L"Zamykanie i zapis wyniku…");}
         else {save_placement(w);DestroyWindow(w);}return 0;
     case WM_DESTROY:view.destroy();PostQuitMessage(0);return 0;
     }
@@ -909,6 +1046,15 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,PWSTR arguments,int show) {
     }
     ShowWindow(w,show);UpdateWindow(w);
     MSG msg{};while(GetMessageW(&msg,nullptr,0,0)>0) {
+        if(details_window && (msg.hwnd==details_window || IsChild(details_window,msg.hwnd))){
+            if(msg.message==WM_KEYDOWN && msg.wParam==VK_ESCAPE){DestroyWindow(details_window);continue;}
+            if(!IsDialogMessageW(details_window,&msg)){TranslateMessage(&msg);DispatchMessageW(&msg);}
+            continue;
+        }
+        if(msg.message==WM_KEYDOWN && msg.wParam=='C' && (GetKeyState(VK_CONTROL)&0x8000) && msg.hwnd==GetDlgItem(w,list_id)){
+            SendMessageW(w,WM_COMMAND,MAKEWPARAM(copy_row_id,BN_CLICKED),0);
+            continue;
+        }
         if(msg.message==WM_KEYDOWN && msg.wParam==VK_RETURN && msg.hwnd==GetDlgItem(w,list_id) &&
            (view.page()==9 || view.page()==10) && IsWindowVisible(GetDlgItem(w,archive_id))){
             SendMessageW(w,WM_COMMAND,MAKEWPARAM(archive_id,BN_CLICKED),reinterpret_cast<LPARAM>(GetDlgItem(w,archive_id)));

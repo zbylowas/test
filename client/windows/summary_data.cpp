@@ -138,17 +138,30 @@ Snapshot read(const Json& report) {
             auto ip=string_value(field(addr,"ip"));
             if (ip.empty()) continue;
             auto& check=s.checks[ip.find(L':')==ip.npos?6:7];
-            if (check.tone==Tone::neutral) measured(check,L"Adres na karcie",ip);
-            else check.detail+=L"\r\n"+ip;
+            if (check.tone==Tone::neutral) measured(check,ip,ip);
+            else {
+                check.detail+=L"\r\n"+ip;
+                if(check.value.starts_with(L"fe80:") && !ip.starts_with(L"fe80:"))check.value=ip;
+            }
         }
-        if (value(*nic,"dns").is_array() && !value(*nic,"dns").empty())
-            measured(s.checks[5],L"Skonfigurowany",L"Windows wskazał serwer DNS dla karty pomiarowej. Czas odpowiedzi DNS wymaga osobnego testu.");
+        std::wstring dns, addresses;
+        size_t count=0;
+        for (const auto& server:value(*nic,"dns")) {
+            auto ip=string_value(server);
+            if(ip.empty()) continue;
+            if(count++) addresses+=L"\r\n";
+            else dns=ip;
+            addresses+=ip;
+        }
+        if (count)
+            measured(s.checks[5],dns+(count>1?L"  +"+std::to_wstring(count-1):L""),
+                L"Serwery DNS karty pomiarowej\r\n"+addresses);
     }
     auto observed=string_value(field(report,"observed_ip"));
     if (!observed.empty()) {
         auto& family=s.checks[observed.find(L':')==observed.npos?6:7];
-        auto detail=family.tone==Tone::observed ? L"Adresy karty:\r\n"+family.detail+L"\r\n" : L"";
-        measured(family,L"Potwierdzono HTTPS",detail+L"Adres klienta widziany przez serwer: "+observed);
+        auto detail=family.tone==Tone::observed ? L"Adresy lokalne karty\r\n"+family.detail+L"\r\n\r\n" : L"";
+        measured(family,observed,detail+L"Adres klienta widziany przez węzeł HTTPS\r\n"+observed);
     }
     if (e.complete) measured(s.checks[8],e.timeouts?L"Brak części odpowiedzi":L"Serwer odpowiedział",
         s.metrics[4].detail+L" Krótka seria dotyczy wyłącznie chwili testu.",e.timeouts?Tone::warning:Tone::observed);

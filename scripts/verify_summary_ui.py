@@ -34,7 +34,7 @@ def wait(predicate, seconds=15):
     raise AssertionError("Window did not reach the expected state")
 
 
-def find_window(pid):
+def find_window(pid, class_name="VipNetDiagnosticsWindow"):
     matches = []
     callback = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
 
@@ -43,7 +43,7 @@ def find_window(pid):
         user.GetWindowThreadProcessId(hwnd, ctypes.byref(owner))
         name = ctypes.create_unicode_buffer(80)
         user.GetClassNameW(hwnd, name, len(name))
-        if owner.value == pid and name.value == "VipNetDiagnosticsWindow":
+        if owner.value == pid and name.value == class_name:
             matches.append(hwnd)
         return True
 
@@ -150,6 +150,10 @@ def verify_archive(exe, origin, tmp):
             wait(lambda: user.IsWindowVisible(win) and user.IsWindowEnabled(get(209))
                  and user.IsWindowEnabled(get(102)))
             verify_offline_game_addresses(win)
+            for page, columns in ((209, 5), (210, 6)):
+                click(page)
+                header = user.SendMessageW(get(310), 0x101F, 0, 0)  # LVM_GETHEADER
+                assert user.SendMessageW(header, 0x1200, 0, 0) == columns  # HDM_GETITEMCOUNT
             for keyboard in (True,False):
                 # Navigation is setup; exercise the actual Enter and button activation below.
                 user.SendMessageW(win, 0x0111, 209, get(209))
@@ -187,6 +191,42 @@ def run(exe):
             assert user.SendMessageW(get(106), 0x0146, 0, 0) == 2
             assert "—" in caption(get(240))
             assert "Nie przetestowano" in caption(get(253))
+            click(250)
+            details = wait(lambda: find_window(process.pid, "VipNetDetailsWindow"))
+            popup_text = user.GetDlgItem(details, 401)
+            assert "Komputer" in caption(popup_text)
+            frame = bounds(details)
+            assert frame.right - frame.left >= 560 and frame.bottom - frame.top >= 380
+            assert caption(user.GetDlgItem(details, 402)) == "Kopiuj całość"
+            if os.environ.get("CI") == "true":
+                user.SendMessageW(user.GetDlgItem(details, 402), 0x00F5, 0, 0)
+                kernel = ctypes.windll.kernel32
+                user.GetClipboardData.argtypes = [wintypes.UINT]
+                user.GetClipboardData.restype = wintypes.HANDLE
+                kernel.GlobalLock.argtypes = [wintypes.HGLOBAL]
+                kernel.GlobalLock.restype = ctypes.c_void_p
+                kernel.GlobalUnlock.argtypes = [wintypes.HGLOBAL]
+                assert user.OpenClipboard(0)
+                try:
+                    data = user.GetClipboardData(13)
+                    pointer = kernel.GlobalLock(data)
+                    assert pointer
+                    try:
+                        assert "Komputer" in ctypes.wstring_at(pointer)
+                    finally:
+                        kernel.GlobalUnlock(data)
+                finally:
+                    user.CloseClipboard()
+            user.SendMessageW(user.GetDlgItem(details, 403), 0x00F5, 0, 0)
+            wait(lambda: not find_window(process.pid, "VipNetDetailsWindow"))
+            for page in (202, 203):
+                click(page)
+                wait(lambda: user.IsWindowVisible(get(333)) and user.IsWindowEnabled(get(333)))
+                assert user.IsWindowEnabled(get(332))
+                if page == 202:
+                    assert "Procent zajętej" in caption(get(311))
+            click(108)
+
             for width, height in ((960, 640), (1366, 768), (1920, 1080)):
                 user.SetWindowPos(win, 0, 0, 0, width, height, 0x16)
                 rows = [bounds(get(i)) for i in (*range(240, 247), *range(250, 260), 261)]

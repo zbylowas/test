@@ -57,6 +57,21 @@ int main() {
     auto legacy=read(report);
     require(legacy.recorded && legacy.metrics[0].value==L"1" && legacy.lines[0].empty(),"old report");
     require(legacy.metrics[2].value==L"—" && legacy.checks[7].tone==Tone::neutral,"fabricated result");
+    report["throughput"]["reservation_local_ip"]={{"value",ip}};
+    report["observed_ip"]="203.0.113.44";
+    Json nic={{"unicast",{{"value",Json::array({{{"ip",ip}},{{"ip","fe80::10"}},{{"ip","2001:db8::10"}}})}}},
+        {"dns",{{"value",Json::array({"192.0.2.53","2001:db8::53"})}}},{"model",{{"value","Fixture NIC"}}}};
+    report["inventory"]["interfaces"]["value"]=Json::array({nic});
+    auto internet=read(report);
+    require(internet.checks[5].value==L"192.0.2.53  +1","DNS address missing");
+    require(internet.checks[6].value==L"203.0.113.44" && internet.checks[7].value==L"2001:db8::10","IP addresses not shown");
+    auto internet_page=detail_page(5,report,internet);
+    bool local_ip=false,dns=false;
+    for(const auto& row:internet_page.rows){
+        local_ip|=row.cells[0]==L"IPv4 · karta" && row.cells[1]==L"192.0.2.10";
+        dns|=row.cells[0]==L"DNS" && row.cells[1]==L"2001:db8::53";
+    }
+    require(local_ip && dns,"individual addresses omitted from Internet view");
     auto& node=report["throughput"]["host_pings"]["node"];
     node={{"target",ip},{"planned",5},{"reason",nullptr},{"samples",{ping,ping,timeout,ping,ping}}};
     auto result=read(report);

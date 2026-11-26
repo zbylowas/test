@@ -245,17 +245,7 @@ void neighbors(Json& doc, const Bytes& key) {
         doc["neighbors"] = doc["unique_neighbor_macs"] = unavailable("GetIpNetTable2:" + std::to_string(rc));
         return;
     }
-    std::ifstream input;
-    auto path = environment(L"VIPNET_OUI_FILE");
-    if (!path.empty())
-        input.open(std::filesystem::path(path), std::ios::binary);
-    bool has_registry = input.is_open();
-    std::map<std::string, std::string> vendors;
-    std::string line;
-    while (std::getline(input, line)) {
-        if (line.size() > 7 && line.size() <= 400 && line[6] == '\t')
-            vendors.emplace(line.substr(0, 6), line.substr(7));
-    }
+    const auto registry=read_oui_registry();
     Json rows = Json::array();
     std::set<std::string> unique;
     size_t total = 0;
@@ -269,15 +259,7 @@ void neighbors(Json& doc, const Bytes& key) {
         unique.insert(id);
         if (++total > 128)
             continue;
-        char prefix[7]{};
-        std::snprintf(prefix, sizeof prefix, "%02X%02X%02X", r.PhysicalAddress[0], r.PhysicalAddress[1],
-                      r.PhysicalAddress[2]);
-        auto vendor = vendors.find(prefix);
-        Json manufacturer = unavailable(has_registry ? "oui_unknown" : "oui_registry_missing");
-        if (r.PhysicalAddress[0] & 2)
-            manufacturer = unavailable("locally_administered_address");
-        else if (vendor != vendors.end())
-            manufacturer = available(vendor->second);
+        auto manufacturer=registry.vendor({r.PhysicalAddress,r.PhysicalAddressLength});
         rows.push_back({{"index", r.InterfaceIndex},
                         {"ip", address(reinterpret_cast<const SOCKADDR*>(&r.Address))},
                         {"state", r.State},
@@ -288,6 +270,28 @@ void neighbors(Json& doc, const Bytes& key) {
     doc["unique_neighbor_macs"] = available(unique.size());
 }
 } // namespace
+
+OuiRegistry read_oui_registry(){
+    OuiRegistry result;
+    std::ifstream input;
+    auto path=environment(L"VIPNET_OUI_FILE");
+    if(!path.empty())input.open(std::filesystem::path(path),std::ios::binary);
+    result.loaded=input.is_open();
+    std::string line;
+    while(std::getline(input,line)){
+        if(line.size()>7 && line.size()<=400 && line[6]=='\t')
+            result.entries.emplace(line.substr(0,6),line.substr(7));
+    }
+    return result;
+}
+Json OuiRegistry::vendor(std::span<const unsigned char> address) const {
+    if(address.size()!=6)return unavailable("invalid_hardware_address");
+    if(address.front()&2)return unavailable("locally_administered_address");
+    char prefix[7]{};
+    std::snprintf(prefix,sizeof prefix,"%02X%02X%02X",address[0],address[1],address[2]);
+    if(auto match=entries.find(prefix);match!=entries.end())return available(match->second);
+    return unavailable(loaded?"oui_unknown":"oui_registry_missing");
+}
 
 Json collect_inventory(const Bytes& key) {
     Json doc = {{"captured_at", utc_now()}, {"system", system_snapshot()}};

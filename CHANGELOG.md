@@ -1,5 +1,11 @@
 # Historia wydań
 
+## 1.0.0 · 2026-11-26
+
+- Kafle Podsumowania otwierają duże, skalowalne okno ze wskazaną wartością i przyciskiem kopiowania. W widokach szczegółowych można kopiować wybrany wiersz, również przez Ctrl+C.
+- Internet pokazuje adresy IPv4, IPv6 i DNS oraz odrębny adres widziany przez węzeł pomiarowy. Historia opisuje stan i cel prób, a Raporty zestawiają zapisane wyniki.
+- Sieć lokalna pokazuje bieżące adresy IP i MAC znanych Windows urządzeń, wykryte bramy, producenta z opcjonalnej bazy OUI oraz obserwowane porty TCP. Komputer pokazuje obciążenie procesów, gniazda TCP/UDP i ruch interfejsów.
+
 ## 0.7.7 · 2026-11-26
 
 - Portal i metadane kompilacji Windows wskazują vip-net.pl jako twórcę. Portal udostępnia odnośniki do publicznego kodu MIT i zasad podpisywania.

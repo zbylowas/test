@@ -152,11 +152,42 @@ DetailPage detail_page(int page,const Json& report,const Snapshot& s){
         for(int i:{2,3,4})fact(p,s.metrics[i],i==4?L" %":L" ms");
         for(auto k:{"gateway","node"}){
             const auto& h=field(field(t,"host_pings"),k);if(!h.is_object())continue;
-            metric(p,k[0]=='g'?L"Ping do routera":L"Ping do węzła",value(field(h,"target")),L"Kolejne odpowiedzi ICMP w milisekundach. Luka oznacza brak odczytu.");
+            double sum=0;
+            unsigned count=0;
+            for(const auto& probe:field(h,"samples")){
+                const auto& ms=field(probe,"rtt_ms");
+                if(field(probe,"status")=="echo_reply" && ms.is_number()){sum+=ms.get<double>();++count;}
+            }
+            auto destination=field(h,"target").is_string()?value(h.at("target")):L"Brak adresu";
+            metric(p,k[0]=='g'?L"Ping do routera":L"Ping do węzła",
+                count?number(sum/count)+L" ms":L"Brak echa ICMP",
+                L"Cel pomiaru\r\n"+destination+L"\r\n\r\nKolejne odpowiedzi ICMP w milisekundach. Luka oznacza brak odczytu.");
             auto& r=p.rows.back();r.unit=L"ms";
             for(auto& a:field(h,"samples")){auto& v=field(a,"rtt_ms");r.points.push_back(v.is_number()?std::optional<double>(v.get<double>()):std::nullopt);}
         }
-        for(int i:{5,6,7,9})fact(p,s.checks[i]);
+        p.subtitle=L"Adresy z ostatniego testu. Dwuklik otwiera szczegóły z możliwością kopiowania.";
+        if(nic){
+            for(const auto& dns:reading(*nic,"dns"))if(dns.is_string())
+                metric(p,L"DNS",value(dns),L"Adres serwera skonfigurowanego na karcie pomiarowej.");
+            for(const auto& local:reading(*nic,"unicast")){
+                const auto& ip=field(local,"ip");
+                if(!ip.is_string()) continue;
+                auto address=value(ip);
+                const bool v6=address.find(L':')!=address.npos;
+                metric(p,v6?L"IPv6 · karta":L"IPv4 · karta",address,
+                    v6 && address.starts_with(L"fe80:")?L"Adres łącza lokalnego karty.":L"Adres odczytany z karty pomiarowej.");
+            }
+        }
+        const auto& peer=field(t,"peer");
+        if(peer.is_string())metric(p,L"Węzeł pomiarowy · IP",value(peer),L"Adres serwera użyty przez aplikację.");
+        const auto& seen=field(report,"observed_ip");
+        if(seen.is_string()){
+            auto ip=value(seen);
+            metric(p,ip.find(L':')==ip.npos?L"IPv4 · widziany przez serwer":L"IPv6 · widziany przez serwer",
+                ip,L"Adres połączenia zapisany przez serwer pomiarowy HTTPS.");
+        }else metric(p,L"IP widziany przez serwer",L"Brak danych",L"Serwer nie podał adresu klienta w ostatnim raporcie.");
+        for(int i:{5,6,7})if(s.checks[i].tone==Tone::neutral)fact(p,s.checks[i]);
+        fact(p,s.checks[9]);
     }
     return p;
 }
