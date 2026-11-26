@@ -219,7 +219,7 @@ Json run_route(const RouteRequest& request,const std::atomic_bool& cancel,
     queue.seal(id,state);
     bool synced=false;
     try {synced=queue.sync(false)==0;} catch(const std::exception&){}
-    return {{"session_id",id},{"version","0.7.6"},{"started_at",started},{"ended_at",utc_now()},{"device",device},
+    return {{"session_id",id},{"version","0.7.7"},{"started_at",started},{"ended_at",utc_now()},{"device",device},
             {"state",state},{"error",error},{"measurement",parameters},{"mtr_samples",std::move(samples)},{"synchronized",synced}};
 }
 
@@ -255,7 +255,7 @@ Json run_desktop_test(const std::atomic_bool& cancel, const std::function<void(c
         try { delivered = queue.sync(false) == 0; } catch (const std::exception&) { }
         return {{"device",std::move(device)},{"observed_ip",observed_ip.empty()?Json(nullptr):Json(observed_ip)},
                 {"desktop_trace",{{"session_id",id},{"download",live.trace(0)},{"upload",live.trace(1)}}},
-                {"mtr_samples",std::move(samples)},{"version","0.7.6"},{"throughput",std::move(report)},{"inventory",std::move(inventory)},{"synchronized",delivered}};
+                {"mtr_samples",std::move(samples)},{"version","0.7.7"},{"throughput",std::move(report)},{"inventory",std::move(inventory)},{"synchronized",delivered}};
     } catch (...) {
         if (!sealed) queue.seal(id, "partial");
         throw;
@@ -266,7 +266,7 @@ int diagnostics_main(int argc, char** argv) {
     if (argc == 2 || argc == 3) {
         try {
             std::string_view cmd(argv[1]);
-            if (cmd == "--version" && argc == 2) { std::cout << "0.7.6\n"; return 0; }
+            if (cmd == "--version" && argc == 2) { std::cout << "0.7.7\n"; return 0; }
             if (cmd == "--status" && argc == 2) { Queue().status(); return 0; }
             if (cmd == "--sync" && argc == 3 && std::string_view(argv[2]) == "--retry-blocked")
                 return Queue().sync(false, true);

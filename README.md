@@ -1,6 +1,6 @@
 # VIP-NET Internet Diagnostics
 
-Windows 0.7.6 pokazuje wyniki prędkości, opóźnienia, stan komputera, sieć i Wi-Fi w jasnych widokach. W MTR możesz wpisać adres lub nazwę DNS, ustawić rodzinę IP, wybrać ICMP lub TCP 443, obejrzeć poszczególne skoki i porównać trasy. Diagnostyka gier zawiera 18 profili gier i platform, w tym Roblox, Counter-Strike 2, Minecraft, Dota 2, League of Legends, Valorant i PUBG: BATTLEGROUNDS. Własny profil pozwala wpisać adres ręcznie. Historia zachowuje także przerwane pomiary. Budując własną dystrybucję, ustaw adres kontrolowanego serwera w pliku NetDiagnostics.ini lub w opcji CMake NETDIAG_DESKTOP_ORIGIN. [Konfiguracja Windows](deploy/windows-portable.md)
+Windows 0.7.7 pokazuje wyniki prędkości, opóźnienia, stan komputera, sieć i Wi-Fi w jasnych widokach. W MTR możesz wpisać adres lub nazwę DNS, ustawić rodzinę IP, wybrać ICMP lub TCP 443, obejrzeć poszczególne skoki i porównać trasy. Diagnostyka gier zawiera 18 profili gier i platform, w tym Roblox, Counter-Strike 2, Minecraft, Dota 2, League of Legends, Valorant i PUBG: BATTLEGROUNDS. Własny profil pozwala wpisać adres ręcznie. Historia zachowuje także przerwane pomiary. Budując własną dystrybucję, ustaw adres kontrolowanego serwera w pliku NetDiagnostics.ini lub w opcji CMake NETDIAG_DESKTOP_ORIGIN. [Konfiguracja Windows](deploy/windows-portable.md)
 
 ## Kod i licencja
 

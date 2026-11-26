@@ -1,5 +1,10 @@
 # Historia wydań
 
+## 0.7.7 · 2026-11-26
+
+- Portal i metadane kompilacji Windows wskazują vip-net.pl jako twórcę. Portal udostępnia odnośniki do publicznego kodu MIT i zasad podpisywania.
+- Wydanie korzysta z lokalnie skonfigurowanego klucza projektu. Kompilacja ze źródeł bez certyfikatu informuje o braku konfiguracji aktualizacji.
+
 ## Przygotowanie podpisu Authenticode · 2026-11-26
 
 - Ręczna budowa publicznej gałęzi main po testach może przekazać oba EXE do SignPath. Użycie wymaga aktywnej organizacji, polityki podpisu i ręcznej akceptacji żądania. Workflow sprawdza certyfikat, znacznik czasu i metadane przed udostępnieniem artefaktu.
